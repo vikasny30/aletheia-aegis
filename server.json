@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "description": "Deterministic output-side guard that checks model responses before they reach the user, plus an eval harness scoring the guard against labeled cases",
+  "name": "io.github.vikasny30/aletheia-aegis",
+  "packages": [
+    {
+      "identifier": "aletheia-aegis",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "registryType": "npm",
+      "transport": {
+        "type": "stdio"
+      },
+      "version": "0.1.2"
+    }
+  ],
+  "repository": {
+    "source": "github",
+    "url": "https://github.com/vikasny30/aletheia-aegis"
+  },
+  "title": "Aletheia Aegis Output Guard & Eval Harness",
+  "version": "0.1.2",
+  "websiteUrl": "https://github.com/vikasny30/aletheia-aegis"
+}

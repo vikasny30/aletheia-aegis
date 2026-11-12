@@ -1,0 +1,45 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/server-manifest.json",
+  "author": "Vikas Shivpuriya <vikas.ny30@gmail.com>",
+  "category": "security",
+  "command": "aletheia-aegis",
+  "description": "Deterministic output-side guard for model responses. Checks what a model said before it reaches the user across the output-side Aletheia signatures (S1, S2a, S3-output, S4, S5, S6, S7) in sub-millisecond time with no LLM in the hot path, and scores itself against a bundled labeled eval set. A first-line pre-filter, not a guarantee.",
+  "displayName": "Aletheia Aegis Output Guard & Eval Harness",
+  "homepage": "https://github.com/vikasny30/aletheia-aegis",
+  "license": "Apache-2.0",
+  "name": "aletheia-aegis",
+  "prompts": [
+    "aegis_output_review"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vikasny30/aletheia-aegis.git"
+  },
+  "resources": [
+    "aegis://signatures/all",
+    "aegis://telemetry/summary",
+    "aegis://telemetry/audit-log",
+    "aegis://eval/last-scorecard"
+  ],
+  "runtime": "node",
+  "tags": [
+    "security",
+    "safety",
+    "agent-runtime",
+    "guardrails",
+    "output-guard",
+    "eval-harness",
+    "anthropic",
+    "claude-code"
+  ],
+  "tools": [
+    "aegis_check_output",
+    "aegis_verify_citations",
+    "aegis_run_eval",
+    "aegis_classify_incident",
+    "aegis_list_signatures",
+    "aegis_get_telemetry"
+  ],
+  "transport": "stdio",
+  "version": "0.1.2"
+}

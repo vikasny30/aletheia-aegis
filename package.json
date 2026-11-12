@@ -1,0 +1,66 @@
+{
+  "author": "Vikas Shivpuriya <vikas.ny30@gmail.com>",
+  "bin": {
+    "aletheia-aegis": "dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0",
+    "zod": "^3.24.2"
+  },
+  "description": "Deterministic output-side guard for model responses: checks what a model said before it reaches the user. Covers the output-side signatures of the Aletheia taxonomy (S1, S2a, S3-output, S4, S5, S6, S7) with no LLM in the hot path, plus a bundled eval harness that scores the guard against labeled cases. A first-line pre-filter, not a guarantee.",
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "eval",
+    "README.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "server.json",
+    "mcp.json"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "anthropic",
+    "claude",
+    "agent-safety",
+    "guardrails",
+    "aletheia",
+    "output-guard",
+    "llm-safety",
+    "eval-harness"
+  ],
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "mcpName": "io.github.vikasny30/aletheia-aegis",
+  "name": "aletheia-aegis",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vikasny30/aletheia-aegis.git"
+  },
+  "scripts": {
+    "benchmark": "tsx test/latency-benchmark.ts",
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "eval": "tsx test/run-eval.ts",
+    "prepare": "npm run build",
+    "start": "node dist/index.js",
+    "test": "tsx test/aegis-output.test.ts",
+    "test:fp": "tsx test/false-positive-sweep.ts",
+    "test:mcp": "tsx test/mcp-smoke.ts",
+    "eval:heldout": "tsx test/run-heldout.ts",
+    "eval:redteam": "tsx test/run-redteam.ts",
+    "test:parity": "tsx test/parity-test.ts"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "version": "0.1.2"
+}

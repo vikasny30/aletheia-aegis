@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+# Private strategy docs must never ship in the public repo.
+# The review plan lives outside the repo at ../aletheia-aegis-review/PLAN.md.
+# This entry is a backstop in case a copy ever lands here.
+PLAN.md

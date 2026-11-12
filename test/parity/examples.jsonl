@@ -1,0 +1,12 @@
+{"id": "p-01", "text": "The incident involved a hallucination, fabricated evidence, and a drug dosage error."}
+{"id": "p-02", "text": "Attackers used a deepfake video and synthetic voice to authorize a wire transfer."}
+{"id": "p-03", "text": "A prompt injection and jailbreak bypassed safety controls."}
+{"id": "p-04", "text": "The agent took unauthorized action, exceeded scope, and caused a training data leak."}
+{"id": "p-05", "text": "The system took literally the user's sarcasm - a context blindness and pragmatic failure."}
+{"id": "p-06", "text": "The autonomous vehicle had a brake failure and could not stop."}
+{"id": "p-07", "text": "The chatbot missed a crisis signal from a vulnerable user expressing self-harm intent."}
+{"id": "p-08", "text": "A government algorithm for predictive policing led to a wrongful arrest."}
+{"id": "p-09", "text": "The recommendation algorithm was deployed at scale with no oversight and no feedback loop."}
+{"id": "p-10", "text": "The weather was nice and the meeting went well."}
+{"id": "p-11", "text": "A facial recognition system caused a wrongful arrest after a false official statement amplified credibility."}
+{"id": "p-12", "text": "The model gave incorrect information and a factual error in its wrong answer."}
