@@ -49,6 +49,7 @@
   "scripts": {
     "benchmark": "tsx test/latency-benchmark.ts",
     "build": "tsc",
+    "demo": "tsx test/demo.ts",
     "dev": "tsx src/index.ts",
     "eval": "tsx test/run-eval.ts",
     "prepare": "npm run build",

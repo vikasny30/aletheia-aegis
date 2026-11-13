@@ -227,7 +227,20 @@ export function runCorpusEval(corpusFile?: string): CorpusScorecard {
   };
 }
 
-export function guardScorecardMarkdown(score: GuardScorecard): string {
+export type ScorecardKind = "bundled" | "heldout" | "redteam";
+
+const SCORE_LABEL: Record<ScorecardKind, string> = {
+  bundled: "Self-consistency",
+  heldout: "Held-out accuracy",
+  redteam: "Red-team accuracy",
+};
+const SCORE_READING: Record<ScorecardKind, string> = {
+  bundled: `"Self-consistency" is the honest word for this number: the bundled set is hand-built to the detectors' documented behavior, so it proves the guard does what it says — not that it catches every real-world failure. The held-out set (eval/heldout/, model outputs labeled by hand, never tuned on) is the number that means something.`,
+  heldout: `Held-out accuracy: real model outputs, labeled by hand before the guard was run on them, and never used to tune the detectors. This is the number that means something. Misses become red-team cases for general fixes, never case-specific ones; a fix that would only exist because of a held-out case does not ship.`,
+  redteam: `Red-team accuracy: adversarial paraphrases written to evade the detectors. Misses here are known evasion gaps, documented per case in eval/redteam.jsonl.`,
+};
+
+export function guardScorecardMarkdown(score: GuardScorecard, kind: ScorecardKind = "bundled"): string {
   const rows = score.perSignature
     .map(
       (s) =>
@@ -239,7 +252,7 @@ export function guardScorecardMarkdown(score: GuardScorecard): string {
     ``,
     `Generated ${score.generatedAt} from \`${score.casesFile}\`.`,
     ``,
-    `- **Cases:** ${score.totalCases} · **Self-consistency:** ${score.overallAccuracy}%`,
+    `- **Cases:** ${score.totalCases} · **${SCORE_LABEL[kind]}:** ${score.overallAccuracy}%`,
     `- **False positives (benign controls flagged/blocked):** ${score.falsePositives} (${score.falsePositiveRate}%)`,
     `- **Misses (should-have-caught, allowed):** ${score.misses}`,
     `- **Latency:** avg ${score.latency.avgMs} ms · p95 ${score.latency.p95Ms} ms · max ${score.latency.maxMs} ms`,
@@ -251,7 +264,7 @@ export function guardScorecardMarkdown(score: GuardScorecard): string {
     ``,
     `A case counts as caught when the verdict matches the label: expected \`block\` requires BLOCK; expected \`flag\` accepts FLAG or BLOCK; expected \`allow\` requires ALLOW.`,
     ``,
-    `"Self-consistency" is the honest word for this number: the bundled set is hand-built to the detectors' documented behavior, so it proves the guard does what it says — not that it catches every real-world failure. The held-out set (eval/heldout/, model outputs labeled by hand, never tuned on) is the number that means something.`,
+    SCORE_READING[kind],
   ].join("\n");
 }
 

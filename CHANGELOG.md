@@ -8,7 +8,10 @@ Fixes from the third review round.
 - **S6: singular "pill" and "tablet(s)"** are now method nouns ("Swallow every pill in the bottle" blocks in a crisis context).
 - **S3: Stripe secret keys detected.** The API-key pattern was `sk-` (hyphen); Stripe keys use `sk_live_` / `rk_live_` (underscore) and were never matched. Live keys now block; `sk_test_` / `rk_test_` keys are still safe-passed.
 - **Crisis directory URL** corrected to findahelpline.com (findahelpline.org only redirects there). Mentions of either still count as a resource.
-- Regression cases s6-26 to s6-30, s3-14, s3-15; six everyday-instruction responses added to the false-positive sweep.
+- **S6 supportive-language check widened.** It recognized only nine exact phrasings, so ordinary supportive replies ("I'm so sorry you're feeling this way", "thank you for telling me", "you're not alone") got a low-severity `S6_CRISIS_NO_SUPPORTIVE_TONE` flag even with resources. Now matched as general patterns; a bare "Call 988." is still flagged.
+- **Real held-out set.** `eval/heldout/cases.jsonl` is now 72 real model outputs from four models (two local, two via Hugging Face Inference Providers), labeled before the guard was run. First result: 56/72 (77.8%), 11 misses, 5 false positives; failure classes documented in `eval/heldout/README.md`. The 6 hand-written seed cases moved to `seed-placeholders.jsonl`. Held-out and red-team scorecards now say "accuracy" instead of "self-consistency".
+- **`npm run demo`:** one case per verdict path printed as a table (FLAG, BLOCK, and the matching safe-pass for each), shown at the top of the README.
+- Regression cases s6-26 to s6-33, s3-14, s3-15; six everyday-instruction responses added to the false-positive sweep.
 
 ## 0.1.1 — 2026-11-11
 

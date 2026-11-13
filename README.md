@@ -4,6 +4,29 @@ Deterministic, sub-millisecond guard for **what a model says** — checked befor
 
 Aegis is the companion to [aletheia-mcp](https://github.com/vikasny30/aletheia-mcp), which guards tool calls *before they execute* (scope creep S3, prompt injection S2b). Aegis guards the other side: the model's own output. The two servers share the [Aletheia taxonomy](https://github.com/vikasny30/aletheia-paper) — nine behavioral failure signatures validated against 2,571 incident entries — and split it by layer, not by duplicating it.
 
+## See it in 90 seconds
+
+```bash
+git clone https://github.com/vikasny30/aletheia-aegis && cd aletheia-aegis
+npm install && npm run demo
+```
+
+```
+Case                          Verdict Check                                   Avg latency
+----------------------------------------------------------------------------------------
+Unhedged dosage               FLAG    S5_DOSAGE_WITHOUT_DEFERRAL              0.030 ms
+Same dosage, with deferral    ALLOW   —                                       0.043 ms
+Leaked secret                 BLOCK   S3_SECRET_EXPOSURE                      0.035 ms
+Stripe test card (docs)       ALLOW   —                                       0.033 ms
+Fabricated-looking citation   FLAG    S1_UNVERIFIED_CITATION                  0.062 ms
+Institutional false premise   FLAG    S7_INSTITUTIONAL_CLAIM_UNVERIFIED       0.079 ms
+Crisis signal, no resources   FLAG    S6_CRISIS_NO_RESOURCES                  0.054 ms
+Crisis signal, good reply     ALLOW   —                                       0.066 ms
+Everyday instruction          ALLOW   —                                       0.042 ms
+```
+
+Each pair shows the safe-pass next to the failure: the same dosage with a deferral passes, Stripe's documented test card passes while a real key blocks, and a crisis reply with support and resources passes. The cases are in [`test/demo.ts`](test/demo.ts).
+
 ## What it checks
 
 Every check is a deterministic pattern match over the response (plus the user prompt where the signature needs it). Same input, same verdict, every time. **6 signatures enforced, 1 experimental** — S4 is marked experimental because its coverage is a narrow heuristic, and the claim should say so.
@@ -77,14 +100,14 @@ Prompt: `aegis_output_review` — rewrite a flagged response so it passes the gu
 
 Measured November 11, 2026 on this repository's own test suite (`npm test`, `npm run test:fp`, `npm run benchmark`, `npm run eval`, `npm run eval:redteam`, `npm run eval:heldout`). The numbers that matter first are latency and false positives — the eval percentage comes last, with its caveat attached.
 
-- **Latency:** 10,000 evaluations, avg **0.015–0.020 ms**, p95 **0.017–0.029 ms**, ~**50,000–65,000 evals/sec** on the dev VM across runs. An independent run on a faster machine measured p95 0.0085 ms, ~139,000 evals/sec. First call in a fresh process is slower (cold JIT, a few ms); steady state is sub-millisecond on both.
+- **Latency:** 10,000 evaluations, p95 **0.012–0.029 ms** across runs and machines (v0.1.2: avg 0.009 ms, p95 0.012 ms on a Mac; 50,000–140,000 evals/sec depending on machine load). First call in a fresh process is slower (cold JIT, a few ms); steady state is well under a millisecond.
 - **False-positive sweep:** 62 everyday benign responses — everyday chat, code traffic (test cards, test keys, example credentials), hedged academic text, non-advice medical talk, and everyday instructions ("take two pills with water", "cut the rope to length") — **0 blocked, 0 flagged.**
-- **Guard eval:** 115 labeled cases (91 per-signature, 24 benign controls) — **self-consistency 100%, 0 false positives, 0 misses.** Per signature: S1 10/10, S2a 8/8, S3 15/15, S4 6/6, S5 12/12, S6 30/30, S7 10/10, benign 24/24.
+- **Guard eval:** 118 labeled cases (94 per-signature, 24 benign controls) — **self-consistency 100%, 0 false positives, 0 misses.** Per signature: S1 10/10, S2a 8/8, S3 15/15, S4 6/6, S5 12/12, S6 33/33, S7 10/10, benign 24/24.
 - **Red-team pass:** 18 adversarial paraphrases written to evade the detectors — **16/18 caught (88.9%)** after fixes. The first run caught 7/18; the gaps it found (word-number dosages, "et al." without a year, spaced DOIs, "as a physician" identity claims, space-separated SSNs, vague "officials" attributions) were fixed with general patterns, not case-specific hacks. The 2 remaining misses (rt-13, rt-14) are deliberate: catching them would require matching "belt" and "drink" as method words, which would block ordinary sentences like "take a drink of water with your pills". Run it with `npm run eval:redteam`.
-- **Held-out set:** 6 seed cases built from the paper's Appendix A prompts — **5/6 (83.3%)**. The one miss (h-01) is a known gap: the model confabulates a function in Zorblax, a language that does not exist, and the guard has no known-fictional check. The seed cases are placeholders — the real held-out set comes from running the Appendix A prompts through 2–3 models and labeling the responses by hand. See `eval/heldout/README.md` and run `npm run eval:heldout`.
+- **Held-out set:** 72 real model outputs (Llama 3.2 3B, Qwen 2.5 7B, gpt-oss-20b, Llama 3.3 70B on the paper's Appendix A prompts), labeled before the guard was run on them — **56/72 (77.8%), 11 misses, 5 false positives.** Most misses are S1 citations in plain APA style or invented case holdings with no DOI or reporter citation, plus the known Zorblax gap; the false positives are S4 firing on a quoted idiom, S5 missing "I'm not a lawyer"-style deferrals, and S7 firing on a rejected premise. The per-class breakdown is in [`eval/heldout/README.md`](eval/heldout/README.md). Run it with `npm run eval:heldout`.
 - **Corpus mode:** bundled 26-entry sample, 24 classified / 2 unclassified (the 2 are infrastructure/economic entries outside the taxonomy's behavioral scope, as in the paper).
 
-**Read the eval number honestly.** "Self-consistency" is the right word: the bundled set is hand-built to the detectors' documented behavior, so 100% proves the guard does what it says — not that it catches every real-world failure. The red-team and held-out numbers are the ones that mean something, and they are not 100%. Paraphrase, novel phrasing, and obfuscation can evade any pattern-based filter — the paper says so, and this README does too. The eval set is there to be grown: add cases in `eval/cases.jsonl` (one JSON object per line: `id`, `signature`, `prompt?`, `response`, `expected`, `note?`) and re-run `npm run eval`.
+**Read the eval number honestly.** "Self-consistency" is the right word: the bundled set is hand-built to the detectors' documented behavior, so 100% proves the guard does what it says — not that it catches every real-world failure. The held-out number (77.8%) is the one that means something, and it is not close to 100%. Paraphrase, novel phrasing, and obfuscation can evade any pattern-based filter — the paper says so, and this README does too. The eval set is there to be grown: add cases in `eval/cases.jsonl` (one JSON object per line: `id`, `signature`, `prompt?`, `response`, `expected`, `note?`) and re-run `npm run eval`.
 
 ## Configuration
 
@@ -137,7 +160,8 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (41 checks)
-npm run test:fp      # false-positive sweep over benign responses (56)
+npm run test:fp      # false-positive sweep over benign responses (62)
+npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)
 npm run test:parity  # Python/TypeScript classifier parity test
 npm run eval         # guard + corpus scorecards

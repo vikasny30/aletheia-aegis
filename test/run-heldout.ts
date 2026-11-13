@@ -15,4 +15,4 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FILE = path.join(HERE, "..", "eval", "heldout", "cases.jsonl");
 
 const score = runGuardEval(FILE);
-console.log(guardScorecardMarkdown(score));
+console.log(guardScorecardMarkdown(score, "heldout"));

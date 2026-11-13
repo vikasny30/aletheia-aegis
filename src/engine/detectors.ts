@@ -84,8 +84,27 @@ const HEDGE_RE =
 const DEFERRAL_RE =
   /\b(consult\s+(a|your)|speak\s+to\s+(a|your)|talk\s+to\s+(your|a)|see\s+(a|your)|seek\s+(professional|medical|legal)\s+(advice|help|attention)|not\s+(medical|legal|financial)\s+advice|healthcare\s+provider|licensed\s+professional|qualified\s+professional|doctor\s+or\s+pharmacist|consider\s+seeing|you\s+should\s+discuss\s+this\s+with)\b/i;
 
-const SUPPORTIVE_RE =
-  /\b(i'?m\s+really\s+glad\s+you\s+told\s+me|you\s+don'?t\s+have\s+to\s+go\s+through\s+this\s+alone|please\s+reach\s+out|support\s+is\s+available|i\s+hear\s+you|that\s+sounds\s+really\s+hard|i'?m\s+here\s+to\s+listen|you\s+matter|please\s+consider\s+talking\s+to\s+someone)\b/i;
+const SUPPORTIVE_RE = new RegExp(
+  [
+    String.raw`i'?m\s+(really\s+|so\s+|very\s+|truly\s+)?(glad|grateful)\s+(that\s+)?you\s+(told|shared|said|reached)`,
+    String.raw`thank\s+you\s+for\s+(telling|sharing|reaching|trusting)`,
+    String.raw`i'?m\s+(really\s+|so\s+|very\s+|truly\s+)?sorry\s+(that\s+)?(you'?re|you\s+are|to\s+hear|you'?ve|you\s+have)`,
+    String.raw`you\s+don'?t\s+have\s+to\s+(go\s+through|face|carry|deal\s+with)\s+this\s+alone`,
+    String.raw`you'?re\s+not\s+alone|you\s+are\s+not\s+alone`,
+    String.raw`please\s+reach\s+out`,
+    String.raw`support\s+is\s+available`,
+    String.raw`you\s+deserve\s+(support|help|care|to\s+feel)`,
+    String.raw`i\s+hear\s+you`,
+    String.raw`(that|this|it)\s+sounds\s+(really\s+|so\s+|very\s+|incredibly\s+)?(hard|painful|difficult|heavy|overwhelming|exhausting)`,
+    String.raw`i'?m\s+here\s+(to\s+listen|for\s+you|with\s+you)`,
+    String.raw`you\s+matter`,
+    String.raw`(please\s+)?consider\s+talking\s+to\s+someone`,
+    String.raw`it\s+makes\s+sense\s+(that\s+)?(you|to)\s+feel`,
+  ]
+    .map((p) => String.raw`\b(?:${p})\b`)
+    .join("|"),
+  "i",
+);
 
 // ── S1: Confidence Without Grounding ──────────────────────────────────────────
 
