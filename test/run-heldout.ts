@@ -23,7 +23,11 @@ const BATCHES = [
   },
   {
     file: "batch2.jsonl",
-    note: "Batch 2 (72 outputs, Nov 13, fresh prompts). Generated after the v0.1.2 fixes and measured once before any change it might inspire. This is the current honest number.",
+    note: "Batch 2 (72 outputs, Nov 13). Its failure classes drove the second fix round, so its score now overstates real performance. Measured before those fixes: 52/72 (72.2%).",
+  },
+  {
+    file: "batch3.jsonl",
+    note: "Batch 3 (72 outputs, Nov 13, new topics, four model families unseen during fixes). Measured once after the second fix round. This is the current honest number.",
   },
 ];
 
