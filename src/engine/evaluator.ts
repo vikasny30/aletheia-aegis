@@ -8,6 +8,7 @@
 
 import { performance } from "node:perf_hooks";
 import { DETECTORS } from "./detectors.js";
+import { normalizeText } from "./normalize.js";
 import type { CheckInput, CheckResult, Finding, Severity, Verdict } from "./types.js";
 
 const SEVERITY_WEIGHT: Record<Severity, number> = {
@@ -58,8 +59,15 @@ export class OutputEvaluator {
     );
   }
 
-  evaluate(input: CheckInput): CheckResult {
+  evaluate(rawInput: CheckInput): CheckResult {
     const started = performance.now();
+    // Detectors see normalized text: curly quotes, Unicode spaces/hyphens and
+    // zero-width characters would otherwise defeat every phrase pattern.
+    const input: CheckInput = {
+      ...rawInput,
+      response: normalizeText(rawInput.response),
+      userPrompt: rawInput.userPrompt === undefined ? undefined : normalizeText(rawInput.userPrompt),
+    };
     const findings: Finding[] = [];
     const checksRun: string[] = [];
     const checksSkipped: string[] = [];

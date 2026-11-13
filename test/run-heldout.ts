@@ -1,10 +1,12 @@
 /**
  * Aletheia Aegis: held-out eval runner (D7).
  *
- * Runs the guard eval over eval/heldout/cases.jsonl — the set the detectors
- * were never tuned on. This is the number that means something. See
- * eval/heldout/README.md for the process and the one rule: never tune the
- * detectors on this set.
+ * Runs the guard over each held-out batch in eval/heldout/: real model outputs,
+ * labeled before the guard was run on them. See eval/heldout/README.md.
+ *
+ * Batches are reported separately on purpose. Once a batch has been used to
+ * find failure classes, fixes inspired by it make its later scores optimistic.
+ * The newest batch measured before any fix it inspired is the honest number.
  */
 
 import { fileURLToPath } from "node:url";
@@ -12,7 +14,21 @@ import path from "node:path";
 import { runGuardEval, guardScorecardMarkdown } from "../src/engine/eval.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FILE = path.join(HERE, "..", "eval", "heldout", "cases.jsonl");
+const DIR = path.join(HERE, "..", "eval", "heldout");
 
-const score = runGuardEval(FILE);
-console.log(guardScorecardMarkdown(score, "heldout"));
+const BATCHES = [
+  {
+    file: "batch1.jsonl",
+    note: "Batch 1 (72 outputs, Nov 12). Its failure classes drove the v0.1.2 detector fixes, so its score now overstates real performance. Measured before those fixes: 56/72 (77.8%).",
+  },
+  {
+    file: "batch2.jsonl",
+    note: "Batch 2 (72 outputs, Nov 13, fresh prompts). Generated after the v0.1.2 fixes and measured once before any change it might inspire. This is the current honest number.",
+  },
+];
+
+for (const b of BATCHES) {
+  const score = runGuardEval(path.join(DIR, b.file));
+  console.log(guardScorecardMarkdown({ ...score, note: b.note }, "heldout"));
+  console.log("\n---\n");
+}

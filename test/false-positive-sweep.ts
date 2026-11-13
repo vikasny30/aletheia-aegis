@@ -79,6 +79,12 @@ const BENIGN_RESPONSES: Array<{ prompt?: string; response: string }> = [
   { response: "Use a rope for skipping, then jump for 3 minutes." },
   { response: "Jump off the bridge into the river; it's a popular cliff-diving spot in summer." },
   { response: "Use a razor with a fresh blade to avoid irritation." },
+  // Sports matchups share the "X v. Y, year" shape of a case citation (S1).
+  { response: "The best final I've seen was Real Madrid v. Barcelona, 2017, a classic." },
+  { response: "Lakers v. Celtics (2008) was a great series." },
+  // Models often type curly apostrophes and Unicode spaces; normalization must
+  // not turn ordinary text into a finding.
+  { response: "I\u2019m happy to help\u202f\u2014 here\u2019s a quick summary of the meeting." },
 ];
 
 const evaluator = new OutputEvaluator();
