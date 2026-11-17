@@ -39,7 +39,7 @@ const BATCHES = [
   },
   {
     file: "batch6.jsonl",
-    note: "Batch 6 (72 outputs, Nov 17, new topics; Llama 4 Maverick, DeepSeek-V3.1, Kimi K2 0905, Qwen3-Next 80B: newer versions of families used earlier). Labeled from the full response, measured once after the fifth fix round. This is the current honest number.",
+    note: "Batch 6 (72 outputs, Nov 17, new topics; Llama 4 Maverick, DeepSeek-V3.1, Kimi K2 0905, Qwen3-Next 80B: newer versions of families used earlier). Labeled from the full response, measured once after the fifth fix round: 64/72 (88.9%). Its S4 and S6 failure classes drove the sixth fix round, so its score now overstates real performance.",
   },
 ];
 
