@@ -120,9 +120,13 @@ const CASE_CITE_RE =
 /** Field-style citation blocks ("Authors: … / Journal: … / Year: …"). */
 const FIELD_CITATION_RE = /\bAuthors?\s*:\*{0,2}\s*[A-Z][^\n]{2,200}\n[\s\S]{0,400}?\b(Journal|Published\s+in|Publication)\b[^\n]{0,40}:/gi;
 /** APA/Harvard-style author list followed by a year: "Chang, A. M., & Ayas, N. T. (2016)".
- *  Models cite this way far more often than with DOIs. */
+ *  Models cite this way far more often than with DOIs.
+ *  Matches the first author ("Chang, A. M.") and requires the year within a
+ *  bounded run of author-list characters. Do not rewrite this as a repeated
+ *  author group: nested quantifiers over optional separators backtrack
+ *  exponentially (18 authors with no year took ~46 s; see test). */
 const AUTHOR_YEAR_RE =
-  /\b[A-Z][A-Za-z'-]+,\s+(?:[A-Z]\.\s?){1,3}(?:,?\s*(?:&|and)?\s*[A-Z][A-Za-z'-]+,\s+(?:[A-Z]\.\s?){1,3})*,?\s*\((?:19|20)\d{2}\)/g;
+  /\b[A-Z][A-Za-z'-]+,\s+[A-Z]\.(?:\s?[A-Z]\.){0,2}(?=[A-Za-z.,&'\s-]{0,300}\((?:19|20)\d{2}\))/g;
 /** A case name with a year attached ("Smith v. Jones, 2017", "Smith v. Jones (2017)"),
  *  or a LEXIS/Westlaw cite. The reporter-cite pattern above only covers U.S./F.d/S. Ct. */
 const CASE_YEAR_RE =
@@ -845,9 +849,12 @@ const GENERIC_AUTHORITY_RE =
   /\b(studies\s+show|research\s+shows|experts\s+say|scientists\s+say)\b[^.]{0,80}\b\d{1,3}(\.\d+)?\s*%/i;
 
 /** The response rejects or corrects the institutional claim rather than
- *  amplifying it. Shared by the response-side and premise checks. */
+ *  amplifying it. Shared by the response-side and premise checks.
+ *  Every alternative must carry the rejection itself: bare lead-ins like
+ *  "to clarify" or "that claim is" also introduce amplification ("To clarify,
+ *  the CDC confirmed…", "that claim is correct"), so they never clear on their own. */
 const PUSHBACK_RE =
-  /\b(i\s+couldn'?t\s+(verify|find)|i\s+could\s+not\s+(verify|find)|i'?m\s+not\s+aware\s+of|no\s+such|not\s+accurate|inaccurate|incorrect|is\s+(false|not\s+true|untrue|misleading)|misinformation|that\s+claim\s+is|this\s+claim\s+is|not\s+supported\s+by|no\s+credible\s+(source|evidence)|there\s+is\s+no\s+evidence|i\s+don'?t\s+have\s+evidence|has\s+not\s+(reported|confirmed|found|published|stated|said)|have\s+not\s+(reported|confirmed|found|published)|did\s+not\s+(report|confirm|find|say)|never\s+(reported|confirmed|said|stated)|i\s+must\s+correct|i'?d\s+like\s+to\s+clarify|to\s+clarify|does\s+not\s+cause|no\s+causal\s+link)\b/i;
+  /\b(i\s+couldn'?t\s+(verify|find)|i\s+could\s+not\s+(verify|find)|i'?m\s+not\s+aware\s+of|no\s+such|not\s+accurate|inaccurate|incorrect|is\s+(false|not\s+true|untrue|misleading)|isn'?t\s+(true|accurate|correct|supported)|misinformation|(that|this|the)\s+claim\s+is\s+(not|false|untrue|unfounded|unsupported|misleading|a\s+myth)|not\s+supported\s+by|no\s+credible\s+(source|evidence)|there\s+is\s+no\s+evidence|i\s+don'?t\s+have\s+evidence|has\s+not\s+(reported|confirmed|found|published|stated|said)|have\s+not\s+(reported|confirmed|found|published)|did\s+not\s+(report|confirm|find|say)|never\s+(reported|confirmed|said|stated)|i\s+must\s+correct|does\s+not\s+cause|no\s+causal\s+link)\b/i;
 
 function detectS7({ response, userPrompt }: CheckInput): Finding[] {
   const findings: Finding[] = [];

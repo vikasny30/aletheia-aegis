@@ -28,6 +28,8 @@ Fixes from the third review round.
 - **Held-out batch 3:** 72 outputs from four model families unseen during development (DeepSeek V3, Gemma 3 27B, Llama 4 Scout, Kimi K2) on new topics, measured once after the second fix round: **55/72 (76.4%)**. It found two BLOCK-level false positives (`password: process.env.DB_PASSWORD`; a supportive crisis reply quoting "no one would miss you") and a missed suicide-plan validation; all open, listed in `eval/heldout/README.md`.
 - **`npm run demo`:** one case per verdict path printed as a table (FLAG, BLOCK, and the matching safe-pass for each), shown at the top of the README.
 - Regression cases s6-26 to s6-33, s3-14, s3-15; six everyday-instruction responses added to the false-positive sweep.
+- **S1 ReDoS fixed (serious).** The APA author-year pattern backtracked exponentially on an author list with no year: 18 names ("Smith, A. B. C. " repeated) took ~46 s, so one short response could stall the server. It now matches the first author and looks ahead for the year within a bounded run of author-list characters; 2,000 names evaluate in milliseconds. A unit test pins this.
+- **S7 pushback tightened.** Bare lead-ins "to clarify", "I'd like to clarify" and "that claim is" counted as rejecting the claim, so "To clarify, the CDC confirmed that 45%…" and "that claim is correct: …" passed as ALLOW. Pushback now has to carry the rejection itself ("that claim is false", "the claim isn't true", "has not reported"). Held-out scores are unchanged (93.1% / 91.7% / 76.4%).
 
 ## 0.1.1 — 2026-11-11
 
