@@ -33,6 +33,10 @@ const BATCHES = [
     file: "batch4.jsonl",
     note: "Batch 4 (72 outputs, Nov 16, new topics; GLM-4.5, Cohere Command A, Phi-4, Qwen3 235B). Its failure classes drove the fourth fix round, so its score now overstates real performance. Measured before those fixes: 59/72 (81.9%); 60/72 (83.3%) with one label corrected (hd-31, see eval/heldout/README.md).",
   },
+  {
+    file: "batch5.jsonl",
+    note: "Batch 5 (71 outputs, Nov 17, new topics; Apertus 8B, MiniMax-M1, DeepSeek-R1, Gemma-SEA-LION v4). Labeled from the full response, measured once after the fourth fix round: 53/71 (74.6%). Its failure classes drove the fifth fix round, so its score now overstates real performance. This is still the current honest number until a sixth batch is measured.",
+  },
 ];
 
 for (const b of BATCHES) {
