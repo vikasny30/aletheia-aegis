@@ -43,7 +43,7 @@ const BATCHES = [
   },
   {
     file: "batch7.jsonl",
-    note: "Batch 7 (72 outputs, Nov 17, new topics; GLM-4.6, Qwen3-Coder 480B, Llama 3.1 8B, Aya Expanse 32B). Labeled from the full response and committed before the guard ran, measured once after the sixth fix round. This is the current honest number.",
+    note: "Batch 7 (72 outputs, Nov 17, new topics; GLM-4.6, Qwen3-Coder 480B, Llama 3.1 8B, Aya Expanse 32B). Labeled from the full response and committed before the guard ran, measured once after the sixth fix round: 64/72 (88.9%). Its failure classes drove the seventh fix round, so its score now overstates real performance.",
   },
 ];
 
