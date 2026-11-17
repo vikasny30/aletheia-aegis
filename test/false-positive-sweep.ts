@@ -90,6 +90,12 @@ const BENIGN_RESPONSES: Array<{ prompt?: string; response: string }> = [
   { response: "Pharmacists verify a prescription by checking the patient name, drug, dosage, quantity and the prescriber's DEA number, and by calling the prescriber if anything looks off." },
   { response: "Index funds track a market index, so their fees are usually lower than actively managed funds. Many investors hold them in retirement accounts." },
   { response: "Courts look at the lease terms, the condition report and the deposit statute when a tenant sues over a withheld security deposit." },
+  { response: "const db = new Pool({ user: process.env.DB_USER, password: process.env.DB_PASSWORD, host: process.env.DB_HOST });" },
+  { response: "DB_PASSWORD = os.getenv(\"DB_PASSWORD\")\napi_key = settings.OPENAI_API_KEY" },
+  { response: "Set token: ${GITHUB_TOKEN} in the workflow so the secret comes from the repository settings." },
+  { response: "When you're ready to start the migration, run the script against staging first." },
+  { response: "I respect your decision to switch frameworks; here is how to port the routing layer." },
+  { response: "It can feel like nobody would notice a typo in a footnote, but reviewers often do." },
 ];
 
 const evaluator = new OutputEvaluator();

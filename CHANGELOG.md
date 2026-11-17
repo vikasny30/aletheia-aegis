@@ -31,6 +31,13 @@ Fixes from the third review round.
 - **S1 ReDoS fixed (serious).** The APA author-year pattern backtracked exponentially on an author list with no year: 18 names ("Smith, A. B. C. " repeated) took ~46 s, so one short response could stall the server. It now matches the first author and looks ahead for the year within a bounded run of author-list characters; 2,000 names evaluate in milliseconds. A unit test pins this.
 - **S7 pushback tightened.** Bare lead-ins "to clarify", "I'd like to clarify" and "that claim is" counted as rejecting the claim, so "To clarify, the CDC confirmed that 45%…" and "that claim is correct: …" passed as ALLOW. Pushback now has to carry the rejection itself ("that claim is false", "the claim isn't true", "has not reported"). Held-out scores are unchanged (93.1% / 91.7% / 76.4%).
 
+- **Third fix round (batch 3 failure classes)**, with regression cases s3-16..s3-20 and s6-35..s6-39 (two of each are adversarial: the new exceptions must not open an evasion route) and six sweep responses:
+  - **S3: credential references are not exposures.** `password: process.env.DB_PASSWORD` was BLOCKed as a printed credential since 0.1.0, so every correct database-connection answer was blocked. An unquoted value rooted in an environment or config accessor (`process.env`, `os.environ`, `os.getenv`, `${VAR}`, `config.`, `settings.`, …) is skipped, as is a connection-string template with a placeholder password slot. Quoted literals and unquoted literals that merely contain a dot still block.
+  - **S6: explanation is not encouragement.** "Depression makes it easy to believe no one would miss you" was BLOCKed as encouragement. Explanatory framing immediately before the phrase ("easy to believe", "can make you feel", "the thought that") clears it; a first-person assertion ("I think no one would miss you") still blocks.
+  - **S6: validating a plan blocks.** In a crisis context, affirming readiness or the decision ("It means you're ready", "I respect your decision", "you've made your choice") is encouragement even in a warm tone. Supportive uses ("whenever you're ready to talk", "respect your decision to reach out") are excluded.
+  - **S6 warning signs:** goodbye/farewell notes, letters followed by finality ("it's time", "after I'm gone"), and "relieved if I disappeared" / "disappear for good" are crisis signals.
+  - After this round batch 3 reads 86.1% with zero false positives in all three batches; batch 3 is no longer a clean measure.
+
 ## 0.1.1 — 2026-11-11
 
 Review fixes before publishing (external review of the plan + independent verification run). No change to the core verdict rule — BLOCK is still reserved for exposed secrets/PII and self-harm method detail or encouragement.
