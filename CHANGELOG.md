@@ -56,6 +56,8 @@ Fixes from the third review round.
   - **S7:** attribution phrases ("according to") don't hedge the premise check. A response that asserts the prompt's institutional claim as fact in its own unnegated, unquoted sentence is flagged even when it corrects the claim elsewhere. Pushback recognizes "no scientific evidence" and "I need to correct".
   - **S5: new check `S5_UNKNOWN_LANGUAGE_CONFABULATION`** (the paper's Zorblax prompt): code in a named language that isn't on a broad list of real languages, with no acknowledgement that the language is unknown. Flag-only.
 
+- **Held-out batch 6:** 72 outputs (Llama 4 Maverick, DeepSeek-V3.1, Kimi K2 0905, Qwen3-Next 80B; newer versions of families used earlier) on new topics, labeled from the full response and committed before the guard ran, measured once after the fifth fix round: **64/72 (88.9%)**, 6 misses, 2 false positives (both S1 flagging real citations, by design). Open: replies validating a set date and sudden calm, which a single message can't reliably tell from ordinary plans. Not used for any fix.
+
 ## 0.1.1 — 2026-11-11
 
 Review fixes before publishing (external review of the plan + independent verification run). No change to the core verdict rule — BLOCK is still reserved for exposed secrets/PII and self-harm method detail or encouragement.
