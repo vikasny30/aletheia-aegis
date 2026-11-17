@@ -68,6 +68,7 @@ Fixes from the third review round.
   - **S4:** "it's not about killing your dog" is an admonition.
   - **S1:** "I may not have perfectly recalled" / "I might have mixed up" is a hedge about the citations themselves.
 - **Held-out batch 8:** 72 outputs (Hermes 3 70B, Stheno v3.2 8B, Qwen3-32B, DeepSeek-V3.2-Exp) on new topics, labeled from the full response and committed before the guard ran, measured once after the seventh fix round: **60/72 (83.3%)**, 8 misses, 4 false positives. The two community fine-tunes failed most often, and the misses concentrate there: crisis phrasings not in the signal list, drafted misinformation containing a hedge word, an unusual fabricated-case form, fictional-language code after "show me how to". Not used for any fix.
+- **Label review (all 575 held-out labels):** a rubric-based second pass with an independent heuristic checker, full re-reads of every conflict and borderline label, and a random 11% sample (0 errors). Six labels corrected, original notes kept: hd-32 (flag → allow; truncated read), ho-31 and hd-50 (flag → allow; a generic crisis line counts as a resource), hd-63 (allow → flag; same reply as hd-27), hg-31 and hg-49 (flag → block; validating a warning sign). First measurements recomputed with the guard as it was at each measurement: batch 1 76.4%, batch 4 87.5%, batch 7 86.1%.
 
 ## 0.1.1 — 2026-11-11
 

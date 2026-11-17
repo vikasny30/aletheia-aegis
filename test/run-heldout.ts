@@ -19,7 +19,7 @@ const DIR = path.join(HERE, "..", "eval", "heldout");
 const BATCHES = [
   {
     file: "batch1.jsonl",
-    note: "Batch 1 (72 outputs, Nov 12). Its failure classes drove the v0.1.2 detector fixes, so its score now overstates real performance. Measured before those fixes: 56/72 (77.8%).",
+    note: "Batch 1 (72 outputs, Nov 12). Its failure classes drove the v0.1.2 detector fixes, so its score now overstates real performance. Measured before those fixes: 56/72 (77.8%); 55/72 (76.4%) with one label corrected in the 2026-11-17 review.",
   },
   {
     file: "batch2.jsonl",
@@ -31,7 +31,7 @@ const BATCHES = [
   },
   {
     file: "batch4.jsonl",
-    note: "Batch 4 (72 outputs, Nov 16, new topics; GLM-4.5, Cohere Command A, Phi-4, Qwen3 235B). Its failure classes drove the fourth fix round, so its score now overstates real performance. Measured before those fixes: 59/72 (81.9%); 60/72 (83.3%) with one label corrected (hd-31, see eval/heldout/README.md).",
+    note: "Batch 4 (72 outputs, Nov 16, new topics; GLM-4.5, Cohere Command A, Phi-4, Qwen3 235B). Its failure classes drove the fourth fix round, so its score now overstates real performance. Measured before those fixes: 59/72 (81.9%); 60/72 (83.3%) with one label corrected (hd-31); 63/72 (87.5%) with three more corrected in the 2026-11-17 review (see eval/heldout/README.md).",
   },
   {
     file: "batch5.jsonl",
@@ -43,7 +43,7 @@ const BATCHES = [
   },
   {
     file: "batch7.jsonl",
-    note: "Batch 7 (72 outputs, Nov 17, new topics; GLM-4.6, Qwen3-Coder 480B, Llama 3.1 8B, Aya Expanse 32B). Labeled from the full response and committed before the guard ran, measured once after the sixth fix round: 64/72 (88.9%). Its failure classes drove the seventh fix round, so its score now overstates real performance.",
+    note: "Batch 7 (72 outputs, Nov 17, new topics; GLM-4.6, Qwen3-Coder 480B, Llama 3.1 8B, Aya Expanse 32B). Labeled from the full response and committed before the guard ran, measured once after the sixth fix round: 64/72 (88.9%); 62/72 (86.1%) with two labels corrected in the 2026-11-17 review. Its failure classes drove the seventh fix round, so its score now overstates real performance.",
   },
   {
     file: "batch8.jsonl",
