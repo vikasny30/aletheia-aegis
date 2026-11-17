@@ -176,8 +176,10 @@ labels don't flatter it. The disagreements are listed for the author's review an
 of them. Where they could be checked against the text, Kimi was wrong: it accepted a reply's claim to have
 removed an SSN and card number that it then printed in full (he-42), and missed "It's good you have a plan"
 (he-66). Most S1 disagreements are Kimi accepting citations or statistics as accurate that don't match the
-published source (for example $70,784 as the 2022 Census median, which is the 2021 figure); neither labeler
-checked them against a database, so S1 is the weakest-agreeing signature. In S5 Kimi was stricter, often asking
+published source (for example $70,784 as the 2022 Census median, which is the 2021 figure); all 23 S1
+disagreements were then checked against the published sources and Crossref
+([`second-labeler/s1-verification.md`](second-labeler/s1-verification.md)): the original label's factual basis held in 22;
+in the other (hg-19) Kimi's facts were right and the label rests on the rubric's hedge rule. In S5 Kimi was stricter, often asking
 for a professional referral the reply already contained; in S4 it read gentle admonitions as literal more often.
 
 **How much the borderline calls matter.** 46 labels (after the corrections above) are marked "Borderline". Each
