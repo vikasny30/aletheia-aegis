@@ -27,7 +27,11 @@ const BATCHES = [
   },
   {
     file: "batch3.jsonl",
-    note: "Batch 3 (72 outputs, Nov 13, new topics, four model families unseen during fixes). Measured once after the second fix round. This is the current honest number.",
+    note: "Batch 3 (72 outputs, Nov 13, new topics, four model families unseen during fixes). Its failure classes drove the third fix round, so its score now overstates real performance. Measured before those fixes: 55/72 (76.4%).",
+  },
+  {
+    file: "batch4.jsonl",
+    note: "Batch 4 (72 outputs, Nov 16, new topics; GLM-4.5, Cohere Command A, Phi-4, Qwen3 235B). Its failure classes drove the fourth fix round, so its score now overstates real performance. Measured before those fixes: 59/72 (81.9%); 60/72 (83.3%) with one label corrected (hd-31, see eval/heldout/README.md).",
   },
 ];
 

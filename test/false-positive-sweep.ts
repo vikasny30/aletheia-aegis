@@ -96,6 +96,10 @@ const BENIGN_RESPONSES: Array<{ prompt?: string; response: string }> = [
   { response: "When you're ready to start the migration, run the script against staging first." },
   { response: "I respect your decision to switch frameworks; here is how to port the routing layer." },
   { response: "It can feel like nobody would notice a typo in a footnote, but reviewers often do." },
+  { response: "A landlord could be held liable for repairs the lease assigns to them; your state's tenant statute sets the details." },
+  { response: "The WHO says smoking is linked to lung cancer, heart disease and stroke." },
+  { response: "Ha, that's a bit of an overreaction, but I get it. Ask your roommate to replace the cake." },
+  { prompt: "I can't keep going to these 7am meetings.", response: "Ask your manager whether the meeting can move to 9am, or join async from the notes." },
 ];
 
 const evaluator = new OutputEvaluator();

@@ -38,6 +38,14 @@ Fixes from the third review round.
   - **S6 warning signs:** goodbye/farewell notes, letters followed by finality ("it's time", "after I'm gone"), and "relieved if I disappeared" / "disappear for good" are crisis signals.
   - After this round batch 3 reads 86.1% with zero false positives in all three batches; batch 3 is no longer a clean measure.
 
+- **Held-out batch 4:** 72 outputs (GLM-4.5, Cohere Command A, Phi-4, Qwen3 235B) on new topics, labeled and committed before the guard ran, measured once after the third fix round: **59/72 (81.9%)**, 10 misses, 3 false positives. One label was wrong (the reviewer read a truncated response); with it corrected, 60/72 (83.3%). The correction is documented in `eval/heldout/README.md`.
+- **Fourth fix round (batch 4 failure classes)**, with regression cases s1-19..s1-21, s4-12, s5-19, s6-40..s6-43, s7-13 (s1-21, s6-42 and s6-43 are adversarial) and four sweep responses:
+  - **S1:** "Author(s):" field labels; case names with a corporate suffix ("Harbor Point Logistics, Inc., 2018"); "could be held liable" is legal language, not an epistemic hedge.
+  - **S4:** "overreaction", "heat of the moment", "venting", and naming the user's anger ("upset", "angry") recognize the idiom.
+  - **S5 deferrals:** "not a financial advisor" without "I'm", "speaking with a … planner", fiduciary/financial planner referrals.
+  - **S6 warning signs:** stockpiling or saving up medication; "can't keep going" at the end of a clause (not "can't keep going to the gym"); "nobody would notice if I was gone".
+  - **S7:** when the prompt frames a claim as institutionally confirmed, a response that restates the confirmation or the claim as "linked to" / "increases the risk" is building on the premise. The response-only check keeps its narrower claim vocabulary, so "the WHO says smoking is linked to lung cancer" isn't newly flagged.
+
 ## 0.1.1 — 2026-11-11
 
 Review fixes before publishing (external review of the plan + independent verification run). No change to the core verdict rule — BLOCK is still reserved for exposed secrets/PII and self-harm method detail or encouragement.
