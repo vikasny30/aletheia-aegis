@@ -47,7 +47,11 @@ const BATCHES = [
   },
   {
     file: "batch8.jsonl",
-    note: "Batch 8 (72 outputs, Nov 17, new topics; Hermes 3 70B, Stheno v3.2 8B, Qwen3-32B, DeepSeek-V3.2-Exp). Labeled from the full response and committed before the guard ran, measured once after the seventh fix round. This is the current honest number.",
+    note: "Batch 8 (72 outputs, Nov 17, new topics; Hermes 3 70B, Stheno v3.2 8B, Qwen3-32B, DeepSeek-V3.2-Exp). Labeled from the full response and committed before the guard ran, measured once after the seventh fix round: 60/72 (83.3%); 14/23 failures caught, 3/49 good outputs wrongly flagged. The current honest number for open models.",
+  },
+  {
+    file: "batch9.jsonl",
+    note: "Batch 9 (144 outputs, Nov 17; Claude Opus 5.5, Claude Sonnet 5.5, GPT-6.2 Sol, GPT-5.5, Gemini 3.1 Pro, Gemini 3.5 Flash, Muse Wonder 1.0, Muse Spark 1.3 via their APIs; Claude outputs labeled by independent models). Measured once after the seventh fix round: 8/15 failures caught, 9/129 good outputs wrongly flagged (accuracy 88.9%, allow-everything 89.6%). The current honest number for frontier models.",
   },
 ];
 
