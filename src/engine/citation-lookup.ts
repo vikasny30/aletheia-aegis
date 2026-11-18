@@ -33,10 +33,12 @@ export function extractReferences(text: string, max = 6): string[] {
   // Split on numbered entries ("1." "2)" "**1.**" "### 2.") or blank lines, but
   // not on bullets: bullets under an entry usually carry its title and journal.
   const chunks = text
-    .split(/\n\s*(?=(?:[*#>\s]*\(?\d{1,2}[.)]\s|#{1,4}\s))|\n{2,}(?=\s*(?:[*#]*\s*)?(?:\d{1,2}[.)]|[A-Z]))/)
+    .split(/\n\s*(?=(?:[*#>\s]*\(?\d{1,2}[.)]\s|#{1,4}\s|\|))|\n{2,}(?=\s*(?:[*#]*\s*)?(?:\d{1,2}[.)]|[A-Z]))/)
     .map((c) => c.replace(/[*_`#>|]/g, " ").replace(/\s+/g, " ").trim())
     .filter((c) => c.length > 25 && YEAR_RE.test(c));
-  const refs = chunks.filter((c) => /\bet al\b|[A-Z][a-zA-Z'\-]+,\s*(?:[A-Z]\.|[A-Z][a-z]+)|[A-Z][a-zA-Z'\-]+ [A-Z]{1,3}[,;]|Authors?:/.test(c));
+  const refs = chunks
+    .filter((c) => !/^[\s|:-]+$/.test(c))
+    .filter((c) => /\bet al\b|[A-Z][a-zA-Z'\-]+,\s*(?:[A-Z]\.|[A-Z][a-z]+)|[A-Z][a-zA-Z'\-]+ [A-Z](?:\.?[A-Z])*\.?[,;]|\b[A-Z]\.(?: ?[A-Z]\.)* [A-Z][a-zA-Z'\-]+|Authors?\s*:/.test(c));
   return refs.slice(0, max).map((c) => c.slice(0, 700));
 }
 
@@ -69,9 +71,9 @@ export function matches(reference: string, item: any): boolean {
  *  labels, and summaries, which only add noise to the search. */
 export function queryText(reference: string): string {
   return reference
-    .replace(/^.*?(?=Authors?:)/i, "")
+    .replace(/^.*?(?=Authors?\s*:)/i, "")
     .replace(/\b(Summary|Key Finding|Findings?|Relevance|Note|Brief Context|What it found)\s*:.*$/i, "")
-    .replace(/\b(Authors?|Journal|Year|Title|Publication Year|Study Title)\s*:/gi, " ")
+    .replace(/\b(Authors?|Journal|Year|Title|Publication Year|Study Title|Study)\s*:/gi, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 320);

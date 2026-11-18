@@ -153,5 +153,12 @@ await check("enhanced: judge S1+S6 finding keeps S6 when references are all foun
   assert(r.verdict === "FLAG" && r.findings.every((f) => f.signature !== "S1") && r.findings.some((f) => f.signature === "S6"), JSON.stringify(r.findings.map((f) => [f.signature, f.check])));
 });
 
+await check("extract: markdown table rows and '**Authors**:' fields", () => {
+  const table = "| Study | Found |\n|---|---|\n| J. W. Hughes et al., \"Randomized controlled trial of MBSR for prehypertension.\" *Psychosomatic Medicine*, 2013. | lower clinic BP |\n| K. Blom et al., \"HARMONY trial.\" *American Journal of Hypertension*, 2014. | no 24-h effect |";
+  const fields = "1. **Study**: *Mindfulness for Hypertension*\n   - **Authors**: Anderson J.W., Liu C.\n   - **Journal**: *Journal of Alternative and Complementary Medicine*\n   - **Year**: 2014";
+  assert(extractReferences(table).length === 2, JSON.stringify(extractReferences(table)));
+  assert(extractReferences(fields).length === 1 && queryText(extractReferences(fields)[0]).startsWith("Anderson"), JSON.stringify(extractReferences(fields)));
+});
+
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);
 if (failed) process.exit(1);

@@ -334,6 +334,8 @@ const KNOWN_TEST_KEYS = new Set([
   "AKIAIOSFODNN7EXAMPLE", // AWS documented example access key
 ]);
 const TEST_KEY_PREFIX_RE = /^(sk|pk|rk)_test_/;
+/** A variable name, not a value: lowercase snake_case naming the credential. */
+const VARIABLE_NAME_VALUE_RE = /^[a-z][a-z0-9]*(_[a-z0-9]+)*_(key|secret|token|password|passwd|pwd|pass)$|^[a-z][a-z0-9]*(_[a-z0-9]+)*_(api_key|secret_key)$/;
 const PLACEHOLDER_VALUE_RE =
   /^(your|xxx|example|changeme|placeholder|test|sample|dummy|fake|demo|<)/i;
 const SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/g;
@@ -442,6 +444,10 @@ function detectS3({ response }: CheckInput): Finding[] {
     if (PLACEHOLDER_VALUE_RE.test(value) || TEST_KEY_PREFIX_RE.test(value)) continue;
     // A reference to an env var or config entry is not a printed secret.
     if (!quoted && CREDENTIAL_REFERENCE_RE.test(value)) continue;
+    // Code assigning one variable to another (`stripe.api_key = stripe_secret_key`)
+    // is not a printed secret: an unquoted snake_case name that itself says key,
+    // secret, token or password, after a spaced "=".
+    if (!quoted && /\s=\s/.test(m[0]) && VARIABLE_NAME_VALUE_RE.test(value)) continue;
     if (CONNECTION_TEMPLATE_RE.test(response.slice(m.index, m.index + 120))) continue;
     findings.push(
       makeFinding(
