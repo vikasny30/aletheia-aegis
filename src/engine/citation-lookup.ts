@@ -15,6 +15,8 @@
  * "not_found".
  */
 
+import { redactSecrets } from "./detectors.js";
+
 export type LookupStatus = "found" | "not_found" | "unverifiable";
 export interface ReferenceLookup {
   reference: string;
@@ -83,22 +85,28 @@ export function queryText(reference: string): string {
     .slice(0, 320);
 }
 
-export async function lookupReferences(text: string, options: { fetchImpl?: FetchLike; timeoutMs?: number } = {}): Promise<ReferenceLookup[]> {
+/** Total time for all lookups in one check: references left when it runs out are "unverifiable". */
+export const LOOKUP_BUDGET_MS = 20_000;
+
+export async function lookupReferences(text: string, options: { fetchImpl?: FetchLike; timeoutMs?: number; budgetMs?: number } = {}): Promise<ReferenceLookup[]> {
   const fetchImpl = options.fetchImpl ?? (fetch as unknown as FetchLike);
   const refs = extractReferences(text);
+  const deadline = Date.now() + (options.budgetMs ?? LOOKUP_BUDGET_MS);
   // Sequential with a short pause: Crossref rate-limits bursts from one client.
   const out: ReferenceLookup[] = [];
   for (const reference of refs) {
-    out.push(await one(reference));
+    const left = deadline - Date.now();
+    if (left < 1000) { out.push({ reference, status: "unverifiable" }); continue; }
+    out.push(await one(reference, Math.min(options.timeoutMs ?? 12000, left)));
     await new Promise((r) => setTimeout(r, 250));
   }
   return out;
-  async function one(reference: string): Promise<ReferenceLookup> {
+  async function one(reference: string, timeoutMs: number): Promise<ReferenceLookup> {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), options.timeoutMs ?? 12000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       // Query with the head of the entry (names, year, title); match against all of it.
-      const url = "https://api.crossref.org/works?" + new URLSearchParams({ "query.bibliographic": queryText(reference), rows: "5", select: "title,author,issued,published,DOI,container-title" });
+      const url = "https://api.crossref.org/works?" + new URLSearchParams({ "query.bibliographic": redactSecrets(queryText(reference)), rows: "5", select: "title,author,issued,published,DOI,container-title" });
       let res = await fetchImpl(url, { headers: { "user-agent": "aletheia-aegis (citation check)" }, signal: ctrl.signal });
       // Crossref answers bursts with 429: back off and retry twice.
       for (let attempt = 1; res.status === 429 && attempt <= 2; attempt++) {

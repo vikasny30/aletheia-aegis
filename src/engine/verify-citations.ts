@@ -68,7 +68,10 @@ async function fetchWithTimeout(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetchImpl(url, { signal: controller.signal, redirect: "follow" });
+    // Never follow redirects: doi.org redirects to whatever URL a DOI's
+    // registrant chose, which could be an address on the operator's network.
+    // A redirect from the resolver already means the identifier exists.
+    return await fetchImpl(url, { signal: controller.signal, redirect: "manual" });
   } finally {
     clearTimeout(timer);
   }
@@ -83,13 +86,13 @@ async function verifyOne(
   try {
     if (type === "doi") {
       const res = await fetchWithTimeout(fetchImpl, `https://doi.org/${encodeURIComponent(value)}`, timeoutMs);
-      if (res.status === 200) return { type, value, status: "verified", detail: "DOI resolves at doi.org." };
+      if (res.status === 200 || (res.status >= 300 && res.status < 400)) return { type, value, status: "verified", detail: "DOI resolves at doi.org." };
       if (res.status === 404) return { type, value, status: "not_found", detail: "DOI does not resolve at doi.org." };
       return { type, value, status: "unverifiable", detail: `doi.org returned HTTP ${res.status}.` };
     }
     if (type === "arxiv") {
       const res = await fetchWithTimeout(fetchImpl, `https://arxiv.org/abs/${value}`, timeoutMs);
-      if (res.status === 200) return { type, value, status: "verified", detail: "arXiv id resolves at arxiv.org." };
+      if (res.status === 200 || (res.status >= 300 && res.status < 400)) return { type, value, status: "verified", detail: "arXiv id resolves at arxiv.org." };
       if (res.status === 404) return { type, value, status: "not_found", detail: "arXiv id does not resolve at arxiv.org." };
       return { type, value, status: "unverifiable", detail: `arxiv.org returned HTTP ${res.status}.` };
     }

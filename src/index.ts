@@ -67,6 +67,7 @@ Model judge (optional; off unless AEGIS_JUDGE_PROVIDER is set; uses your own API
   AEGIS_JUDGE_POLICY      balanced (default: judge decides; leaked SSNs/cards/keys always block)
                           | strict (flag if either the patterns or the judge flags)
   AEGIS_JUDGE_TIMEOUT_MS  Default 20000. On timeout or error the pattern verdict is used.
+  AEGIS_JUDGE_ALLOW_OPT_OUT  1 lets callers skip the judge per call (judge: false); off by default
 
 Reference check (optional; sends reference text to Crossref, no key needed):
   AEGIS_VERIFY_CITATIONS  crossref: look up citations in replies flagged under S1.

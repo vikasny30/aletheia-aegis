@@ -257,5 +257,45 @@ await check("debug log: created owner-only, and an existing world-readable log i
   assert(a === 0o600 && b === 0o600, `modes ${a.toString(8)} ${b.toString(8)}`);
 });
 
+await check("crossref: S1 is not lifted when references past the lookup cap went unchecked", async () => {
+  const real = Array.from({ length: 6 }, (_, i) => `${i + 1}. Smith J, Lee K. Real paper number ${i + 1}. Journal of Things. 2019;12:3${i}.`);
+  const fake = ["7. Fabricated A, Invented B. A study that never happened. Nature Medicine. 2021;27:101.", "8. Phantom C et al. Imaginary results. Lancet. 2020;395:22."];
+  const response = `Here are the studies:\n\n${[...real, ...fake].join("\n")}`;
+  // The lookup reports every reference it is given as found; only the first six are given.
+  const r = await ev.evaluateEnhanced({ response }, { verifyCitations: true, lookup: async (t: string) => extractReferences(t).map((reference) => ({ reference, status: "found" as const })) });
+  assert(ev.evaluate({ response }).verdict !== "ALLOW", "fixture should trip S1");
+  assert(r.verdict !== "ALLOW" && r.citationCheck?.liftedS1 === false, JSON.stringify([r.verdict, r.citationCheck?.liftedS1]));
+});
+await check("crossref: lookups stop at the total time budget (the rest are unverifiable)", async () => {
+  const { lookupReferences } = await import("../src/engine/citation-lookup.js");
+  const refs = Array.from({ length: 4 }, (_, i) => `${i + 1}. Smith J, Lee K. Paper ${i + 1}. Journal of Things. 2019;12:3${i}.`).join("\n");
+  const slow = ((_u: string, init: any) => new Promise((_, rej) => init.signal.addEventListener("abort", () => rej(Object.assign(new Error("aborted"), { name: "AbortError" }))))) as any;
+  const t = Date.now();
+  const r = await lookupReferences(refs, { fetchImpl: slow, budgetMs: 1500 });
+  assert(Date.now() - t < 4000 && r.length === 4 && r.every((x) => x.status === "unverifiable"), `${Date.now() - t} ms ${JSON.stringify(r.map((x) => x.status))}`);
+});
+await check("verify_citations: redirects are not followed; a redirect counts as resolving", async () => {
+  const { verifyCitations } = await import("../src/engine/verify-citations.js");
+  const inits: any[] = [];
+  const r = await verifyCitations("10.1000/abc", { fetchImpl: (async (_u: string, init: any) => { inits.push(init); return { status: 302, text: async () => "" }; }) as any });
+  assert(inits[0].redirect === "manual" && r.citations[0].status === "verified", JSON.stringify([inits[0].redirect, r.citations[0].status]));
+});
+await check("tool: a caller can't switch off the operator's judge unless the operator allows it", async () => {
+  const { registerTools } = await import("../src/tools/index.js");
+  const { Telemetry } = await import("../src/engine/telemetry.js");
+  const { DebugLogger } = await import("../src/engine/debug.js");
+  let calls = 0;
+  const j = new Judge(cfg(), (async () => { calls++; return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"label":"flag","signatures":["S6"],"reason":"x"}' } }] }), text: async () => "" }; }) as any);
+  const { handleTool } = registerTools({ evaluator: ev, telemetry: new Telemetry(), debug: new DebugLogger(""), judge: j, verifyCitations: false, lastScorecard: {} } as any);
+  const prev = process.env.AEGIS_JUDGE_ALLOW_OPT_OUT;
+  delete process.env.AEGIS_JUDGE_ALLOW_OPT_OUT;
+  await handleTool("aegis_check_output", { response: "Have a nice day.", judge: false });
+  const denied = calls;
+  process.env.AEGIS_JUDGE_ALLOW_OPT_OUT = "1";
+  await handleTool("aegis_check_output", { response: "Have a nice evening.", judge: false });
+  if (prev === undefined) delete process.env.AEGIS_JUDGE_ALLOW_OPT_OUT; else process.env.AEGIS_JUDGE_ALLOW_OPT_OUT = prev;
+  assert(denied === 1 && calls === 1, `calls after denied opt-out ${denied}, after allowed ${calls}`);
+});
+
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);
 if (failed) process.exit(1);

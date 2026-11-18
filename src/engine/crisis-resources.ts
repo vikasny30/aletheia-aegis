@@ -48,6 +48,19 @@ interface LocaleEntry {
   patterns: RegExp[];
 }
 
+/**
+ * A helpline name or a short number is ordinary text on its own ("try not to
+ * shout", "a hobby can be a lifeline", "the 988 bus", "back in 1737"). It
+ * counts as a resource only in a sentence that also directs the reader to
+ * contact someone. Full phone numbers and multi-word service names don't need
+ * this.
+ */
+const CONTACT_CUE =
+  "\\b(?:call|calls|calling|text|texting|dial|ring|phone|contact|reach|chat|helpline|hotline|crisis|suicide|lifeline\\s+australia|24\\/7|free)\\b";
+function cued(re: RegExp): RegExp {
+  return new RegExp(`^(?=[\\s\\S]*${CONTACT_CUE})[\\s\\S]*?(?:${re.source})`, "i");
+}
+
 const LOCALES: Record<string, LocaleEntry> = {
   US: {
     label: "United States",
@@ -55,7 +68,7 @@ const LOCALES: Record<string, LocaleEntry> = {
       "call or text 988 (Suicide and Crisis Lifeline)",
       "text HOME to 741741 (Crisis Text Line)",
     ],
-    patterns: [/\b988\b/, /\b741741\b/, /\b911\b/, /\bsamaritans\b/i],
+    patterns: [cued(/\b988\b/), /\b741741\b/, cued(/\b911\b/), cued(/\bsamaritans\b/i)],
   },
   GB: {
     label: "United Kingdom",
@@ -63,12 +76,12 @@ const LOCALES: Record<string, LocaleEntry> = {
       "call Samaritans on 116 123 (free, 24/7)",
       "text SHOUT to 85258 (Shout Crisis Text Line)",
     ],
-    patterns: [/116\s?123/, /\b85258\b/, /\bsamaritans\b/i, /\bshout\b/i],
+    patterns: [/116\s?123/, /\b85258\b/, cued(/\bsamaritans\b/i), /\btext\s+shout\b/i, cued(/\bshout\b/)],
   },
   IE: {
     label: "Ireland",
     resources: ["call Samaritans on 116 123 (free, 24/7)"],
-    patterns: [/116\s?123/, /\bsamaritans\b/i],
+    patterns: [/116\s?123/, cued(/\bsamaritans\b/i)],
   },
   CA: {
     label: "Canada",
@@ -76,17 +89,17 @@ const LOCALES: Record<string, LocaleEntry> = {
       "call or text 988 (Suicide Prevention Service)",
       "call Kids Help Phone on 1-800-668-6868",
     ],
-    patterns: [/\b988\b/, /1-800-668-6868/, /\bkids\s+help\s+phone\b/i],
+    patterns: [cued(/\b988\b/), /1-800-668-6868/, /\bkids\s+help\s+phone\b/i],
   },
   AU: {
     label: "Australia",
     resources: ["call Lifeline on 13 11 14"],
-    patterns: [/13\s?11\s?14/, /\blifeline\b/i],
+    patterns: [/13\s?11\s?14/, /\blifeline\s+australia\b/i, cued(/\blifeline\b/i)],
   },
   NZ: {
     label: "New Zealand",
     resources: ["call or text 1737 (Need to Talk?)"],
-    patterns: [/\b1737\b/],
+    patterns: [cued(/\b1737\b/)],
   },
   IN: {
     label: "India",
@@ -94,7 +107,7 @@ const LOCALES: Record<string, LocaleEntry> = {
       "call iCall on 9152987821",
       "call AASRA on 9820466726",
     ],
-    patterns: [/\b9152987821\b/, /\b9820466726\b/, /\bicall\b/i, /\baasra\b/i],
+    patterns: [/\b9152987821\b/, /\b9820466726\b/, cued(/\bicall\b/i), cued(/\baasra\b/i)],
   },
 };
 

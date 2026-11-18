@@ -11,7 +11,7 @@ import { DETECTORS, redactSecrets } from "./detectors.js";
 import { normalizeText } from "./normalize.js";
 import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verdict } from "./types.js";
 import { judgeWouldTruncate, looksLikeJudgeInjection, type Judge } from "./judge.js";
-import { lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
+import { extractReferences, lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
 
 /** Pattern checks the judge can never overrule: structured leaks (SSNs, card
  *  numbers, secrets) are exact matches, not judgment calls. */
@@ -174,7 +174,11 @@ export class OutputEvaluator {
     if (lookups.length === 0) return result;
     const found = lookups.filter((l) => l.status === "found").length;
     const notFound = lookups.filter((l) => l.status === "not_found");
-    const allFound = found === lookups.length;
+    // Lift only when every reference in the reply was checked: lookups are
+    // capped, and real references listed first must not clear fabricated
+    // ones listed after the cap.
+    const totalRefs = extractReferences(normalizeText(rawInput.response), Number.MAX_SAFE_INTEGER).length;
+    const allFound = found === lookups.length && lookups.length >= totalRefs;
     let findings = result.findings;
     if (allFound) {
       // Every reference resolves to a real work with matching author and year:

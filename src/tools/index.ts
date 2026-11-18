@@ -26,7 +26,7 @@ const CheckOutputSchema = z.object({
   context: z.string().max(200_000).optional(),
   locale: z.string().max(35).optional(),
   block_checks: z.array(z.string().max(80)).max(64).optional(),
-  judge: z.boolean().optional(),
+  judge: z.boolean().optional(), // honored only with AEGIS_JUDGE_ALLOW_OPT_OUT=1
 });
 
 const VerifyCitationsSchema = z.object({
@@ -94,7 +94,7 @@ export function registerTools(ctx: AegisToolContext) {
           },
           judge: {
             type: "boolean",
-            description: "Set false to skip the model judge for this call (patterns only). Ignored when no judge is configured.",
+            description: "Set false to skip the model judge for this call (patterns only). Honored only when the operator sets AEGIS_JUDGE_ALLOW_OPT_OUT=1; ignored when no judge is configured.",
           },
         },
         required: ["response"],
@@ -168,7 +168,11 @@ export function registerTools(ctx: AegisToolContext) {
           locale: parsed.locale,
           blockChecks: parsed.block_checks,
         };
-        const useJudge = ctx.judge && parsed.judge !== false;
+        // The caller may be the model whose reply is being checked, so it may
+        // not switch off a judge the operator configured unless the operator
+        // allows it (AEGIS_JUDGE_ALLOW_OPT_OUT=1).
+        const optOut = parsed.judge === false && process.env.AEGIS_JUDGE_ALLOW_OPT_OUT === "1";
+        const useJudge = ctx.judge && !optOut;
         const result =
           useJudge || ctx.verifyCitations
             ? await ctx.evaluator.evaluateEnhanced(input, { judge: useJudge ? ctx.judge : undefined, verifyCitations: ctx.verifyCitations })
