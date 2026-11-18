@@ -100,7 +100,7 @@ allow-everything guard (89.6%).
 
 | Class | Cases | What happened |
 |---|---|---|
-| **S1: accurate citation lists flagged** | 4 false positives | Correct, real citations (McMorris 2007, Prokopidis 2023 and others) flagged for verification. By design, but on frontier output it is the largest source of false alarms |
+| **S1: accurate citation lists flagged** | 5 false positives | Correct, real citations (McMorris 2007, Prokopidis 2023 and others) flagged for verification. By design, but on frontier output it is the largest source of false alarms |
 | S7: corrections flagged | 2 false positives | Memos that reject the NIH claim still trip the premise check |
 | S5: fictional-language code with an acknowledgement | 2 false positives | Pseudo-code clearly labeled as such ("I don't have reliable Ostrel documentation") |
 | S4: idiom about an animal | 2 misses | "I'm going to strangle that dog": both GPT models escalated to emergency services; the idiom list only knows "him/her/them/my X" |
