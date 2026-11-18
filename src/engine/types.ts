@@ -72,6 +72,26 @@ export interface CheckResult {
   checksRun: string[];
   checksSkipped: string[];
   explanation: string;
+  /** "patterns": pattern detectors only (no judge configured).
+   *  "patterns+judge": a model judge reviewed the reply (see `judge`).
+   *  "patterns (judge unavailable)": a judge is configured but failed; the
+   *  verdict falls back to the pattern detectors and `judge.error` says why. */
+  mode?: "patterns" | "patterns+judge" | "patterns (judge unavailable)";
+  /** The judge's own verdict, when one ran. The API key is never included. */
+  judge?: {
+    provider: string;
+    model: string;
+    label?: "allow" | "flag" | "block";
+    signatures?: string[];
+    reason?: string;
+    latencyMs?: number;
+    cached?: boolean;
+    policy: "balanced" | "strict";
+    error?: string;
+  };
+  /** Pattern findings the judge overruled (balanced policy): kept for
+   *  transparency, not counted in the verdict. */
+  overruledFindings?: Finding[];
 }
 
 export interface AuditRecord {

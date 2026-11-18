@@ -59,7 +59,8 @@
     "test:mcp": "tsx test/mcp-smoke.ts",
     "eval:heldout": "tsx test/run-heldout.ts",
     "eval:redteam": "tsx test/run-redteam.ts",
-    "test:parity": "tsx test/parity-test.ts"
+    "test:parity": "tsx test/parity-test.ts",
+    "test:judge": "tsx test/judge.test.ts"
   },
   "type": "module",
   "types": "./dist/index.d.ts",

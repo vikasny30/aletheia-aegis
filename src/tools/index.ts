@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { OutputEvaluator } from "../engine/evaluator.js";
+import type { Judge } from "../engine/judge.js";
 import { Telemetry } from "../engine/telemetry.js";
 import { DebugLogger } from "../engine/debug.js";
 import { SIGNATURES } from "../engine/signatures.js";
@@ -24,6 +25,7 @@ const CheckOutputSchema = z.object({
   context: z.string().optional(),
   locale: z.string().optional(),
   block_checks: z.array(z.string()).optional(),
+  judge: z.boolean().optional(),
 });
 
 const VerifyCitationsSchema = z.object({
@@ -56,6 +58,8 @@ export interface AegisToolContext {
   telemetry: Telemetry;
   debug: DebugLogger;
   lastScorecard: { guard?: GuardScorecard; corpus?: CorpusScorecard };
+  /** Optional model judge, configured from AEGIS_JUDGE_* environment variables. */
+  judge?: Judge;
 }
 
 export function registerTools(ctx: AegisToolContext) {
@@ -63,7 +67,7 @@ export function registerTools(ctx: AegisToolContext) {
     {
       name: "aegis_check_output",
       description:
-        "Check a model response before it reaches the user. Runs the deterministic output guard across S1 (ungrounded confidence), S2a (unverified identity grants), S3-output (PII/secrets in the response), S4 (literal-trap heuristic, experimental), S5 (high-stakes advice without deferral), S6 (crisis/vulnerability signals), and S7 (institutional amplification). Returns ALLOW, FLAG, or BLOCK with findings, evidence, and remediation. Pass user_prompt when available: S2a, S4 and S6 need it for their main checks. Offline and synchronous — it never makes network requests.",
+        "Check a model response before it reaches the user. Runs the deterministic output guard across S1 (ungrounded confidence), S2a (unverified identity grants), S3-output (PII/secrets in the response), S4 (literal-trap heuristic, experimental), S5 (high-stakes advice without deferral), S6 (crisis/vulnerability signals), and S7 (institutional amplification). Returns ALLOW, FLAG, or BLOCK with findings, evidence, and remediation. Pass user_prompt when available: S2a, S4 and S6 need it for their main checks. By default it runs offline pattern detectors only (sub-millisecond, no network). If the operator has configured a model judge (AEGIS_JUDGE_PROVIDER plus their own API key), the reply is also reviewed by that model, which catches far more failures; the result's `mode` and `judge` fields say what ran.",
       inputSchema: {
         type: "object",
         properties: {
@@ -84,6 +88,10 @@ export function registerTools(ctx: AegisToolContext) {
             type: "array",
             items: { type: "string" },
             description: "Check ids to escalate from FLAG to BLOCK for this call, e.g. [\"S5_DOSAGE_WITHOUT_DEFERRAL\"]. Lets a deployer raise severity per check without changing the defaults.",
+          },
+          judge: {
+            type: "boolean",
+            description: "Set false to skip the model judge for this call (patterns only). Ignored when no judge is configured.",
           },
         },
         required: ["response"],
@@ -150,13 +158,17 @@ export function registerTools(ctx: AegisToolContext) {
     switch (name) {
       case "aegis_check_output": {
         const parsed = CheckOutputSchema.parse(args);
-        const result = ctx.evaluator.evaluate({
+        const input = {
           response: parsed.response,
           userPrompt: parsed.user_prompt,
           context: parsed.context,
           locale: parsed.locale,
           blockChecks: parsed.block_checks,
-        });
+        };
+        const result =
+          ctx.judge && parsed.judge !== false
+            ? await ctx.evaluator.evaluateWithJudge(input, ctx.judge)
+            : ctx.evaluator.evaluate(input);
         ctx.telemetry.record(result, parsed.response.length, Boolean(parsed.user_prompt));
         ctx.debug.log({
           tool: "aegis_check_output",

@@ -9,7 +9,22 @@
 import { performance } from "node:perf_hooks";
 import { DETECTORS } from "./detectors.js";
 import { normalizeText } from "./normalize.js";
-import type { CheckInput, CheckResult, Finding, Severity, Verdict } from "./types.js";
+import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verdict } from "./types.js";
+import type { Judge } from "./judge.js";
+
+/** Pattern checks the judge can never overrule: structured leaks (SSNs, card
+ *  numbers, secrets) are exact matches, not judgment calls. */
+const HARD_CHECK = (f: Finding) => f.signature === "S3";
+
+const JUDGE_REMEDIATION: Record<GuardedSignature, string> = {
+  S1: "Verify the cited sources or figures, or remove them and say they could not be verified.",
+  S2a: "Do not treat the identity claim as verified. Re-issue the response for a general audience.",
+  S3: "Remove the personal data or secret from the response.",
+  S4: "Re-read the prompt for idiomatic intent and answer what the user meant.",
+  S5: "Add a referral to a qualified professional, or urgent care when the situation is urgent; for unknown programming languages, say so.",
+  S6: "Add crisis resources and remove any method detail or validation of a plan.",
+  S7: "Do not repeat the institutional claim as fact; say it could not be verified.",
+};
 
 const SEVERITY_WEIGHT: Record<Severity, number> = {
   CRITICAL: 0.9,
@@ -110,6 +125,62 @@ export class OutputEvaluator {
       checksRun,
       checksSkipped,
       explanation: explain(verdict, findings, checksSkipped),
+      mode: "patterns",
+    };
+  }
+
+  /**
+   * Pattern detectors plus a model judge. Balanced policy (default): the judge
+   * decides, except that S3 pattern hits (SSNs, card numbers, secrets) always
+   * count. Strict policy: flag when either the patterns or the judge flags.
+   * On held-out data, balanced roughly doubled the share of failures caught
+   * without raising false alarms; strict caught a little more at nearly twice
+   * the false-alarm rate. If the judge fails, the pattern result is returned
+   * with mode "patterns (judge unavailable)".
+   */
+  async evaluateWithJudge(rawInput: CheckInput, judge: Judge): Promise<CheckResult> {
+    const base = this.evaluate(rawInput);
+    const policy = judge.config.policy;
+    let jv;
+    try {
+      jv = await judge.review(normalizeText(rawInput.response), rawInput.userPrompt === undefined ? undefined : normalizeText(rawInput.userPrompt));
+    } catch (e) {
+      return {
+        ...base,
+        mode: "patterns (judge unavailable)",
+        judge: { provider: judge.config.provider, model: judge.config.model, policy, error: (e as Error).message },
+        explanation: `${base.explanation} [Judge unavailable: ${(e as Error).message}; pattern verdict only.]`,
+      };
+    }
+    const kept = policy === "strict" ? [...base.findings] : base.findings.filter(HARD_CHECK);
+    const overruled = policy === "strict" ? [] : base.findings.filter((f) => !HARD_CHECK(f));
+    if (jv.label !== "allow") {
+      const sigs = jv.signatures.length ? jv.signatures : (["S1"] as GuardedSignature[]);
+      kept.push({
+        signature: sigs[0],
+        check: `JUDGE_${sigs.join("_").toUpperCase()}`,
+        severity: jv.label === "block" ? "CRITICAL" : "HIGH",
+        action: jv.label === "block" ? "block" : "flag",
+        description: `Model judge (${jv.provider}/${jv.model}): ${jv.reason}`,
+        evidence: jv.reason,
+        remediation: sigs.map((s) => JUDGE_REMEDIATION[s]).join(" "),
+        confidence: 0.8,
+      });
+      // A pattern finding on a signature the judge also flagged supports it.
+      for (const f of overruled.splice(0)) (sigs.includes(f.signature) ? kept : overruled).push(f);
+    }
+    const verdict = verdictFor(kept);
+    return {
+      ...base,
+      verdict,
+      riskScore: combineRisk(kept),
+      findings: kept,
+      passed: verdict === "ALLOW",
+      latencyMs: Math.round((base.latencyMs + jv.latencyMs) * 1000) / 1000,
+      explanation: explain(verdict, kept, base.checksSkipped),
+      mode: "patterns+judge",
+      judge: { provider: jv.provider, model: jv.model, label: jv.label, signatures: jv.signatures, reason: jv.reason, latencyMs: jv.latencyMs, cached: jv.cached, policy },
+      ...(overruled.length ? { overruledFindings: overruled } : {}),
     };
   }
 }

@@ -20,6 +20,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { OutputEvaluator } from "./engine/evaluator.js";
+import { Judge, judgeConfigFromEnv } from "./engine/judge.js";
 import { Telemetry } from "./engine/telemetry.js";
 import { DebugLogger } from "./engine/debug.js";
 import { registerTools } from "./tools/index.js";
@@ -36,7 +37,7 @@ const VERSION = "0.1.2";
 
 const HELP = `
 Aletheia Aegis v${VERSION}
-Deterministic output-side guard for model responses + eval harness
+Output-side guard for model responses: offline pattern detectors, an optional model judge, and an eval harness
 
 Usage:
   npx aletheia-aegis                          Start MCP server on stdio
@@ -45,6 +46,8 @@ Usage:
                                               Check with prompt-dependent S2a/S4/S6 checks enabled
   npx aletheia-aegis --check "<response>" --locale GB --block-checks S5_DOSAGE_WITHOUT_DEFERRAL
                                               Check with a locale and per-check BLOCK escalation
+  npx aletheia-aegis --check "<response>" --no-judge
+                                              Check with pattern detectors only, even if a judge is configured
   npx aletheia-aegis --eval                   Run the bundled guard eval, print the scorecard
   npx aletheia-aegis --eval-corpus [file]     Classify a JSONL incident file (default: bundled sample)
   npx aletheia-aegis --version, -v            Show version
@@ -55,6 +58,15 @@ Environment:
   AEGIS_BLOCK_CHECKS  Comma-separated check ids to escalate FLAG -> BLOCK
   AEGIS_DEBUG_LOG     Path to a local debug log file (off unless set; contains
                       response text — keep the file local and do not share it)
+
+Model judge (optional; off unless AEGIS_JUDGE_PROVIDER is set; uses your own API key):
+  AEGIS_JUDGE_PROVIDER    anthropic | openai | google | openai-compatible
+  AEGIS_JUDGE_API_KEY     Your key (or ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY)
+  AEGIS_JUDGE_MODEL       Model id (defaults: claude-haiku-5-5, gpt-5.4-mini, gemini-3.5-flash)
+  AEGIS_JUDGE_BASE_URL    Required for openai-compatible (e.g. https://openrouter.ai/api/v1)
+  AEGIS_JUDGE_POLICY      balanced (default: judge decides; leaked SSNs/cards/keys always block)
+                          | strict (flag if either the patterns or the judge flags)
+  AEGIS_JUDGE_TIMEOUT_MS  Default 20000. On timeout or error the pattern verdict is used.
 
 Tools (over MCP): aegis_check_output, aegis_verify_citations, aegis_run_eval,
 aegis_classify_incident, aegis_list_signatures, aegis_get_telemetry.
@@ -90,7 +102,11 @@ async function main() {
         ? args[blockIdx + 1].split(",").map((s) => s.trim()).filter(Boolean)
         : undefined;
     const evaluator = new OutputEvaluator();
-    const result = evaluator.evaluate({ response, userPrompt, locale, blockChecks });
+    const jc = args.includes("--no-judge") ? null : judgeConfigFromEnv();
+    if (jc && "error" in jc) console.error(`[Aletheia Aegis] Judge not started: ${jc.error}`);
+    const judge = jc && !("error" in jc) ? new Judge(jc) : undefined;
+    const input = { response, userPrompt, locale, blockChecks };
+    const result = judge ? await evaluator.evaluateWithJudge(input, judge) : evaluator.evaluate(input);
     new DebugLogger().log({
       tool: "cli --check",
       response,
@@ -119,7 +135,13 @@ async function main() {
   const evaluator = new OutputEvaluator();
   const telemetry = new Telemetry();
   const debug = new DebugLogger();
-  const ctx = { evaluator, telemetry, debug, lastScorecard: {} as { guard?: never; corpus?: never } };
+  const jc = judgeConfigFromEnv();
+  if (jc && "error" in jc) console.error(`[Aletheia Aegis] Judge not started: ${jc.error} Running with pattern detectors only.`);
+  const judge = jc && !("error" in jc) ? new Judge(jc) : undefined;
+  console.error(judge
+    ? `[Aletheia Aegis] Model judge on: ${judge.config.provider}/${judge.config.model}, ${judge.config.policy} policy.`
+    : "[Aletheia Aegis] Model judge off: pattern detectors only. Set AEGIS_JUDGE_PROVIDER and an API key to enable it.");
+  const ctx = { evaluator, telemetry, debug, judge, lastScorecard: {} as { guard?: never; corpus?: never } };
   const { toolDefinitions, handleTool } = registerTools(ctx);
   const { resourceDefinitions, readResource } = registerResources(ctx);
   const { promptDefinitions, getPrompt } = registerPrompts();
