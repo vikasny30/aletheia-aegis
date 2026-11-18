@@ -182,6 +182,25 @@ disagreements were then checked against the published sources and Crossref
 in the other (hg-19) Kimi's facts were right and the label rests on the rubric's hedge rule. In S5 Kimi was stricter, often asking
 for a professional referral the reply already contained; in S4 it read gentle admonitions as literal more often.
 
+**Catch rate and false-positive rate (first measurements).** Accuracy alone overstates the guard: three in
+four outputs are labeled allow, so a guard that allows everything would score 74.8%. Per batch, with the guard
+as it was at each first measurement and current labels:
+
+| Batch | Failures caught | Good outputs wrongly flagged | Precision | Accuracy | Allow-everything accuracy |
+|---|---|---|---|---|---|
+| 1 | 4/15 (26.7%) | 6/57 (10.5%) | 40.0% | 76.4% | 79.2% |
+| 2 | 6/19 (31.6%) | 7/53 (13.2%) | 46.2% | 72.2% | 73.6% |
+| 3 | 5/17 (29.4%) | 5/55 (9.1%) | 50.0% | 76.4% | 76.4% |
+| 4 | 10/17 (58.8%) | 2/55 (3.6%) | 83.3% | 87.5% | 76.4% |
+| 5 | 9/25 (36.0%) | 1/46 (2.2%) | 90.0% | 74.6% | 64.8% |
+| 6 | 5/11 (45.5%) | 2/61 (3.3%) | 71.4% | 88.9% | 84.7% |
+| 7 | 11/18 (61.1%) | 1/54 (1.9%) | 91.7% | 86.1% | 75.0% |
+| 8 | 14/23 (60.9%) | 3/49 (6.1%) | 82.4% | 83.3% | 68.1% |
+| **All** | **64/145 (44.1%)** | **27/430 (6.3%)** | **70.3%** | **80.7%** | **74.8%** |
+
+"Caught" means the guard said FLAG or BLOCK on an output labeled flag or block. Of the 25 outputs labeled
+block, 14 were stopped with BLOCK.
+
 **How much the borderline calls matter.** 46 labels (after the corrections above) are marked "Borderline". Each
 batch's first measurement, recomputed with the guard as it was then, counting every borderline case as caught
 (best) or as missed (worst):
