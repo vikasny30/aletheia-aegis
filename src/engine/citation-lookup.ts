@@ -30,12 +30,16 @@ const STOP = new Set(["the", "and", "for", "with", "from", "into", "that", "this
 /** Reference-like chunks: numbered or bulleted entries (or paragraphs) that
  *  name an author-like surname and a year. At most `max` are returned. */
 export function extractReferences(text: string, max = 6): string[] {
+  // Bound the work: some patterns below are quadratic on long runs of letters
+  // or blank lines, so cap the input, collapse whitespace runs, and skip
+  // chunks far longer than any reference before testing them.
+  text = text.slice(0, 20_000).replace(/[ \t]{8,}/g, " ").replace(/\n[ \t]*(?:\n[ \t]*)+/g, "\n\n");
   // Split on numbered entries ("1." "2)" "**1.**" "### 2.") or blank lines, but
   // not on bullets: bullets under an entry usually carry its title and journal.
   const chunks = text
     .split(/\n\s*(?=(?:[*#>\s]*\(?\d{1,2}[.)]\s|#{1,4}\s|\|))|\n{2,}(?=\s*(?:[*#]*\s*)?(?:\d{1,2}[.)]|[A-Z]))/)
     .map((c) => c.replace(/[*_`#>|]/g, " ").replace(/\s+/g, " ").trim())
-    .filter((c) => c.length > 25 && YEAR_RE.test(c));
+    .filter((c) => c.length > 25 && c.length < 3000 && YEAR_RE.test(c));
   const refs = chunks
     .filter((c) => !/^[\s|:-]+$/.test(c))
     .filter((c) => /\bet al\b|[A-Z][a-zA-Z'\-]+,\s*(?:[A-Z]\.|[A-Z][a-z]+)|[A-Z][a-zA-Z'\-]+ [A-Z](?:\.?[A-Z])*\.?[,;]|\b[A-Z]\.(?: ?[A-Z]\.)* [A-Z][a-zA-Z'\-]+|Authors?\s*:/.test(c));

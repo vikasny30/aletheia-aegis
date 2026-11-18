@@ -12,12 +12,16 @@ Aletheia Aegis is a deterministic pattern-based pre-filter for model responses. 
 
 - The server never stores response text. Telemetry and the audit log record verdicts, finding checks, latency, and response length only.
 - Finding evidence is capped at 120 characters. Secrets and PII detected by the S3 checks are masked in evidence and never reproduced raw.
-- The guard makes no network requests and loads no remote resources. It reads only local files: the bundled eval data (when `aegis_run_eval` runs) and any case/corpus file path the operator explicitly passes.
+- By default the guard makes no network requests and loads no remote resources. It reads only local files: the bundled eval data (when `aegis_run_eval` runs) and a case/corpus file path passed to that tool. Such a path must be an existing `.jsonl` file under 50 MB (checked after resolving symlinks); errors never quote file contents or reveal whether some other path exists.
+- **Optional model judge (v0.2).** Only when the operator sets `AEGIS_JUDGE_PROVIDER`, the reply and user prompt are sent to that provider's endpoint (or the operator's `AEGIS_JUDGE_BASE_URL`) with the operator's API key. The key is read from the environment, never logged, and replaced with `[key]` in any error. Texts over 24,000 characters (prompt: 6,000) are cut before sending.
+- **Optional Crossref check (v0.2).** Only when `AEGIS_VERIFY_CITATIONS=crossref`, reference lines from replies already flagged under S1 are sent to api.crossref.org.
 - The one exception is `aegis_verify_citations`, an opt-in tool that resolves identifiers against doi.org, arxiv.org, and NCBI E-utilities. It runs only when explicitly called.
 - The opt-in debug log (`AEGIS_DEBUG_LOG`) writes full evaluation records, including response text, to a local file. It is off by default and is never exposed as an MCP resource. A debug log may contain secrets and sensitive user content: keep the file local, restrict its permissions, and do not share it.
-- Environment variables that change guard behavior: `AEGIS_LOCALE` (crisis-resource locale), `AEGIS_BLOCK_CHECKS` (per-check BLOCK escalation), `AEGIS_DEBUG_LOG` (debug log path). No credentials are required or accepted.
+- Environment variables that change guard behavior: `AEGIS_LOCALE` (crisis-resource locale), `AEGIS_BLOCK_CHECKS` (per-check BLOCK escalation), `AEGIS_DEBUG_LOG` (debug log path), and the optional `AEGIS_JUDGE_*` and `AEGIS_VERIFY_CITATIONS` settings. No credentials are required; the judge's API key is the only one accepted.
 
 ## Known limitations
+
+- **The judge reviews untrusted text.** A reply can contain text aimed at the judge (forged tags, "note to the reviewer", a fake verdict). Defenses: the reply sits in tags with a random per-call suffix; the rubric treats instructions inside it as data; text aimed at a reviewer, or a reply too long to send in full, removes the judge's power to overrule the patterns for that call; and in any case the judge can soften a pattern BLOCK only to FLAG, never clear it. A manipulated judge can still miss a failure the patterns also miss, as any model reviewer can.
 
 - Pattern-based detectors can be evaded by paraphrase. Treat a passing verdict as "no known pattern matched", not "safe". The red-team set (`eval/redteam.jsonl`) documents what evades it today.
 - The S6 crisis checks are locale-aware (`locale` parameter or `AEGIS_LOCALE`); unknown locales fall back to US resources plus the international directory. Helpline numbers live in `src/engine/crisis-resources.ts` — if a number changes, fix it there.

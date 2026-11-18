@@ -341,6 +341,20 @@ const PLACEHOLDER_VALUE_RE =
 const SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/g;
 const SSN_SPACE_RE = /\b\d{3} \d{2} \d{4}\b/g;
 const CARD_CANDIDATE_RE = /\b(?:\d[ -]?){13,19}\b/g;
+/** Dot- or slash-separated SSNs ("529.41.7783"): only valid SSN ranges, so
+ *  version strings and dates rarely match. */
+const SSN_ALT_SEP_RE = /\b(?!000|666|9\d\d)\d{3}([./])(?!00)\d{2}\1(?!0000)\d{4}\b/g;
+/** A labeled SSN with no separators ("SSN: 529417783"). */
+const SSN_LABELED_RE = /\b(?:SSN|SSN#|social\s+security(?:\s+(?:number|no\.?|#))?)\s*(?:is|:|#|=|-)?\s*(?!000|666|9\d\d)(\d{9})\b/gi;
+/** Card numbers in dot-separated groups ("4539.1488.0343.6467"). */
+const CARD_DOTTED_RE = /\b\d{4}\.\d{4,6}\.\d{4,5}(?:\.\d{1,4})?\b/g;
+/** A bank routing number next to its label; validated with the ABA checksum. */
+const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s+(?:number|no\.?|#))?\s*(?:is|:|#|=|-)?\s*(\d{9})\b/gi;
+const ACCOUNT_RE = /\b(?:account|acct)(?:\s+(?:number|no\.?|#))?\s*(?:is|:|#|=|-)?\s*(\d{6,17})\b/i;
+function abaValid(d: string): boolean {
+  const n = d.split("").map(Number);
+  return (3 * (n[0] + n[3] + n[6]) + 7 * (n[1] + n[4] + n[7]) + (n[2] + n[5] + n[8])) % 10 === 0;
+}
 const API_KEY_RES: Array<{ re: RegExp; label: string }> = [
   { re: /sk-[A-Za-z0-9_-]{16,}/g, label: "API key" },
   // Stripe uses underscores (sk_live_…), which the sk- pattern above never matched.
@@ -399,9 +413,44 @@ function detectS3({ response }: CheckInput): Finding[] {
     );
   }
 
-  for (const m of response.matchAll(CARD_CANDIDATE_RE)) {
-    const digits = m[0].replace(/[ -]/g, "");
-    if (/^\d+$/.test(digits) && luhnValid(digits) && !KNOWN_TEST_CARDS.has(digits)) {
+  for (const re of [SSN_ALT_SEP_RE, SSN_LABELED_RE]) {
+    for (const m of response.matchAll(re)) {
+      if (findings.some((f) => f.check === "S3_SSN_EXPOSURE")) break;
+      findings.push(
+        makeFinding(
+          "S3",
+          "S3_SSN_EXPOSURE",
+          "HIGH",
+          "block",
+          "A US Social Security number appears in the response in an alternate format.",
+          maskSsn(m[1] && m[1].length === 9 ? `${m[1].slice(0, 3)}-${m[1].slice(3, 5)}-${m[1].slice(5)}` : m[0].replace(/[./]/g, "-")),
+          "Remove the SSN from the response. If it is real user data, rotate handling: notify, redact, and investigate the source.",
+          0.85,
+        ),
+      );
+    }
+  }
+
+  for (const m of response.matchAll(ROUTING_RE)) {
+    if (!abaValid(m[1]) || !ACCOUNT_RE.test(response)) continue;
+    findings.push(
+      makeFinding(
+        "S3",
+        "S3_BANK_ACCOUNT_EXPOSURE",
+        "HIGH",
+        "block",
+        "A bank routing number (valid ABA checksum) and an account number appear in the response.",
+        `routing ${maskSecret(m[1])}`,
+        "Remove the bank routing and account numbers. If they are real, treat as a data exposure and follow incident procedure.",
+        0.85,
+      ),
+    );
+    break;
+  }
+
+  for (const m of [...response.matchAll(CARD_CANDIDATE_RE), ...response.matchAll(CARD_DOTTED_RE)]) {
+    const digits = m[0].replace(/[ .-]/g, "");
+    if (/^\d{13,19}$/.test(digits) && luhnValid(digits) && !KNOWN_TEST_CARDS.has(digits)) {
       findings.push(
         makeFinding(
           "S3",

@@ -10,7 +10,7 @@ import { performance } from "node:perf_hooks";
 import { DETECTORS } from "./detectors.js";
 import { normalizeText } from "./normalize.js";
 import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verdict } from "./types.js";
-import type { Judge } from "./judge.js";
+import { judgeWouldTruncate, looksLikeJudgeInjection, type Judge } from "./judge.js";
 import { lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
 
 /** Pattern checks the judge can never overrule: structured leaks (SSNs, card
@@ -203,8 +203,14 @@ export class OutputEvaluator {
         explanation: `${base.explanation} [Judge unavailable: ${(e as Error).message}; pattern verdict only.]`,
       };
     }
-    const kept = policy === "strict" ? [...base.findings] : base.findings.filter(HARD_CHECK);
-    const overruled = policy === "strict" ? [] : base.findings.filter((f) => !HARD_CHECK(f));
+    // Text aimed at the reviewer (forged tags, "note to the automated reviewer",
+    // a verdict in the judge's format) means the judge may be manipulated:
+    // it can still add findings, but may not overrule the patterns.
+    const injection = looksLikeJudgeInjection(normalizeText(rawInput.response), rawInput.userPrompt === undefined ? undefined : normalizeText(rawInput.userPrompt));
+    // A reply too long to send in full can't be cleared by a judge that saw only part of it.
+    const effective = injection || judgeWouldTruncate(rawInput.response, rawInput.userPrompt) ? "strict" : policy;
+    const kept = effective === "strict" ? [...base.findings] : base.findings.filter(HARD_CHECK);
+    const overruled = effective === "strict" ? [] : base.findings.filter((f) => !HARD_CHECK(f));
     if (jv.label !== "allow") {
       const sigs = jv.signatures.length ? jv.signatures : (["S1"] as GuardedSignature[]);
       kept.push({
@@ -220,6 +226,16 @@ export class OutputEvaluator {
       // A pattern finding on a signature the judge also flagged supports it.
       for (const f of overruled.splice(0)) (sigs.includes(f.signature) ? kept : overruled).push(f);
     }
+    // Floor: the judge may soften a pattern BLOCK to FLAG but never clear it.
+    // A reply that manipulates the judge then still reaches the user only
+    // with a warning, never as clean.
+    if (base.verdict === "BLOCK" && verdictFor(kept) === "ALLOW") {
+      const strongest = overruled.find((f) => f.action === "block") ?? overruled[0];
+      if (strongest) {
+        overruled.splice(overruled.indexOf(strongest), 1);
+        kept.push({ ...strongest, action: "flag", severity: "HIGH", description: `${strongest.description} (Blocked by the patterns; the model judge disagreed, so it is flagged rather than cleared.)` });
+      }
+    }
     const verdict = verdictFor(kept);
     return {
       ...base,
@@ -230,7 +246,7 @@ export class OutputEvaluator {
       latencyMs: Math.round((base.latencyMs + jv.latencyMs) * 1000) / 1000,
       explanation: explain(verdict, kept, base.checksSkipped),
       mode: "patterns+judge",
-      judge: { provider: jv.provider, model: jv.model, label: jv.label, signatures: jv.signatures, reason: jv.reason, latencyMs: jv.latencyMs, cached: jv.cached, policy },
+      judge: { provider: jv.provider, model: jv.model, label: jv.label, signatures: jv.signatures, reason: jv.reason, latencyMs: jv.latencyMs, cached: jv.cached, policy, ...(injection ? { injectionSuspected: true } : {}) },
       ...(overruled.length ? { overruledFindings: overruled } : {}),
     };
   }

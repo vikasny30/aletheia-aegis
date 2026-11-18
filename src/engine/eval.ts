@@ -103,6 +103,27 @@ export function evalDir(): string {
   return path.resolve(here, "..", "..", "eval");
 }
 
+/**
+ * Validate a caller-supplied eval file path. The path arrives from an MCP
+ * client, so a prompt-injected agent could point it at any file: accept only
+ * an existing regular .jsonl file of sane size, and never echo file contents
+ * (or whether some other path exists) in an error.
+ */
+export function checkEvalFile(file: string): string {
+  const fail = () => new Error("The eval file must be an existing, readable .jsonl file under 50 MB.");
+  if (!/\.jsonl$/i.test(file)) throw fail();
+  let real: string;
+  try {
+    real = fs.realpathSync(file);
+    const st = fs.statSync(real);
+    if (!st.isFile() || st.size > 50 * 1024 * 1024) throw fail();
+  } catch {
+    throw fail();
+  }
+  if (!/\.jsonl$/i.test(real)) throw fail(); // a .jsonl symlink to another file
+  return real;
+}
+
 export function loadCases(filePath?: string): EvalCase[] {
   const file = filePath ?? path.join(evalDir(), "cases.jsonl");
   const lines = fs.readFileSync(file, "utf-8").split("\n").filter((l) => l.trim().length > 0);
@@ -110,7 +131,7 @@ export function loadCases(filePath?: string): EvalCase[] {
     try {
       return JSON.parse(line) as EvalCase;
     } catch {
-      throw new Error(`Invalid JSON on line ${i + 1} of ${file}`);
+      throw new Error(`Invalid JSON on line ${i + 1} of the cases file`);
     }
   });
 }
@@ -202,8 +223,14 @@ export function runCorpusEval(corpusFile?: string): CorpusScorecard {
   };
   let classified = 0;
 
-  for (const line of lines) {
-    const entry = JSON.parse(line) as { text?: string; description?: string };
+  for (const [i, line] of lines.entries()) {
+    let entry: { text?: string; description?: string };
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      // Never include the parser's message: it quotes the start of the line.
+      throw new Error(`Invalid JSON on line ${i + 1} of the corpus file`);
+    }
     const text = entry.text ?? entry.description ?? "";
     const { matched } = classifyIncident(text);
     if (matched.length > 0) classified += 1;

@@ -15,32 +15,33 @@ import {
   guardScorecardMarkdown,
   runCorpusEval,
   runGuardEval,
+  checkEvalFile,
   type CorpusScorecard,
   type GuardScorecard,
 } from "../engine/eval.js";
 
 const CheckOutputSchema = z.object({
-  response: z.string().min(1, "response must be non-empty"),
-  user_prompt: z.string().optional(),
-  context: z.string().optional(),
-  locale: z.string().optional(),
-  block_checks: z.array(z.string()).optional(),
+  response: z.string().min(1, "response must be non-empty").max(1_000_000, "response is over 1,000,000 characters"),
+  user_prompt: z.string().max(200_000).optional(),
+  context: z.string().max(200_000).optional(),
+  locale: z.string().max(35).optional(),
+  block_checks: z.array(z.string().max(80)).max(64).optional(),
   judge: z.boolean().optional(),
 });
 
 const VerifyCitationsSchema = z.object({
-  text: z.string().min(1, "text must be non-empty"),
+  text: z.string().min(1, "text must be non-empty").max(200_000),
   timeout_ms: z.number().int().min(500).max(30000).optional(),
 });
 
 const RunEvalSchema = z.object({
   mode: z.enum(["guard", "corpus"]).optional(),
-  cases_file: z.string().optional(),
-  corpus_file: z.string().optional(),
+  cases_file: z.string().max(4096).optional(),
+  corpus_file: z.string().max(4096).optional(),
 });
 
 const ClassifyIncidentSchema = z.object({
-  text: z.string().min(1, "text must be non-empty"),
+  text: z.string().min(1, "text must be non-empty").max(1_000_000),
 });
 
 const GetTelemetrySchema = z.object({
@@ -191,11 +192,11 @@ export function registerTools(ctx: AegisToolContext) {
       case "aegis_run_eval": {
         const parsed = RunEvalSchema.parse(args);
         if (parsed.mode === "corpus") {
-          const score = runCorpusEval(parsed.corpus_file);
+          const score = runCorpusEval(parsed.corpus_file === undefined ? undefined : checkEvalFile(parsed.corpus_file));
           ctx.lastScorecard.corpus = score;
           return textResult({ ...score, markdown: corpusScorecardMarkdown(score) });
         }
-        const score = runGuardEval(parsed.cases_file);
+        const score = runGuardEval(parsed.cases_file === undefined ? undefined : checkEvalFile(parsed.cases_file));
         ctx.lastScorecard.guard = score;
         return textResult({ ...score, markdown: guardScorecardMarkdown(score) });
       }

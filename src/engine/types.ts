@@ -87,6 +87,9 @@ export interface CheckResult {
     latencyMs?: number;
     cached?: boolean;
     policy: "balanced" | "strict";
+    /** The reply or prompt contained text aimed at the reviewer; the judge
+     *  could add findings but not overrule the patterns. */
+    injectionSuspected?: boolean;
     error?: string;
   };
   /** Pattern findings the judge overruled (balanced policy): kept for
