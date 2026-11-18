@@ -92,6 +92,18 @@ export interface CheckResult {
   /** Pattern findings the judge overruled (balanced policy): kept for
    *  transparency, not counted in the verdict. */
   overruledFindings?: Finding[];
+  /** Crossref reference check (AEGIS_VERIFY_CITATIONS=crossref), run only on
+   *  replies flagged under S1. When every reference is found, S1 is lifted;
+   *  a reference that isn't found never adds a flag on its own. */
+  citationCheck?: {
+    source: "crossref";
+    references: number;
+    found: number;
+    notFound: number;
+    unverifiable: number;
+    liftedS1: boolean;
+    lookups: { reference: string; status: string; match?: { title: string; firstAuthor: string; year?: number; doi?: string } }[];
+  };
 }
 
 export interface AuditRecord {

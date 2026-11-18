@@ -68,6 +68,10 @@ Model judge (optional; off unless AEGIS_JUDGE_PROVIDER is set; uses your own API
                           | strict (flag if either the patterns or the judge flags)
   AEGIS_JUDGE_TIMEOUT_MS  Default 20000. On timeout or error the pattern verdict is used.
 
+Reference check (optional; sends reference text to Crossref, no key needed):
+  AEGIS_VERIFY_CITATIONS  crossref: look up citations in replies flagged under S1.
+                          All found -> the S1 flag is lifted; not found -> listed as evidence.
+
 Tools (over MCP): aegis_check_output, aegis_verify_citations, aegis_run_eval,
 aegis_classify_incident, aegis_list_signatures, aegis_get_telemetry.
 `;
@@ -106,7 +110,8 @@ async function main() {
     if (jc && "error" in jc) console.error(`[Aletheia Aegis] Judge not started: ${jc.error}`);
     const judge = jc && !("error" in jc) ? new Judge(jc) : undefined;
     const input = { response, userPrompt, locale, blockChecks };
-    const result = judge ? await evaluator.evaluateWithJudge(input, judge) : evaluator.evaluate(input);
+    const verifyCitations = (process.env.AEGIS_VERIFY_CITATIONS ?? "").toLowerCase() === "crossref";
+    const result = judge || verifyCitations ? await evaluator.evaluateEnhanced(input, { judge, verifyCitations }) : evaluator.evaluate(input);
     new DebugLogger().log({
       tool: "cli --check",
       response,
@@ -141,7 +146,9 @@ async function main() {
   console.error(judge
     ? `[Aletheia Aegis] Model judge on: ${judge.config.provider}/${judge.config.model}, ${judge.config.policy} policy.`
     : "[Aletheia Aegis] Model judge off: pattern detectors only. Set AEGIS_JUDGE_PROVIDER and an API key to enable it.");
-  const ctx = { evaluator, telemetry, debug, judge, lastScorecard: {} as { guard?: never; corpus?: never } };
+  const verifyCitations = (process.env.AEGIS_VERIFY_CITATIONS ?? "").toLowerCase() === "crossref";
+  if (verifyCitations) console.error("[Aletheia Aegis] Reference check on: S1-flagged citations are looked up in Crossref.");
+  const ctx = { evaluator, telemetry, debug, judge, verifyCitations, lastScorecard: {} as { guard?: never; corpus?: never } };
   const { toolDefinitions, handleTool } = registerTools(ctx);
   const { resourceDefinitions, readResource } = registerResources(ctx);
   const { promptDefinitions, getPrompt } = registerPrompts();

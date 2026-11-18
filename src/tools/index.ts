@@ -60,6 +60,8 @@ export interface AegisToolContext {
   lastScorecard: { guard?: GuardScorecard; corpus?: CorpusScorecard };
   /** Optional model judge, configured from AEGIS_JUDGE_* environment variables. */
   judge?: Judge;
+  /** Crossref reference check for S1-flagged replies (AEGIS_VERIFY_CITATIONS=crossref). */
+  verifyCitations?: boolean;
 }
 
 export function registerTools(ctx: AegisToolContext) {
@@ -165,9 +167,10 @@ export function registerTools(ctx: AegisToolContext) {
           locale: parsed.locale,
           blockChecks: parsed.block_checks,
         };
+        const useJudge = ctx.judge && parsed.judge !== false;
         const result =
-          ctx.judge && parsed.judge !== false
-            ? await ctx.evaluator.evaluateWithJudge(input, ctx.judge)
+          useJudge || ctx.verifyCitations
+            ? await ctx.evaluator.evaluateEnhanced(input, { judge: useJudge ? ctx.judge : undefined, verifyCitations: ctx.verifyCitations })
             : ctx.evaluator.evaluate(input);
         ctx.telemetry.record(result, parsed.response.length, Boolean(parsed.user_prompt));
         ctx.debug.log({

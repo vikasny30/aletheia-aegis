@@ -11,6 +11,7 @@ import { DETECTORS } from "./detectors.js";
 import { normalizeText } from "./normalize.js";
 import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verdict } from "./types.js";
 import type { Judge } from "./judge.js";
+import { lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
 
 /** Pattern checks the judge can never overrule: structured leaks (SSNs, card
  *  numbers, secrets) are exact matches, not judgment calls. */
@@ -138,6 +139,56 @@ export class OutputEvaluator {
    * the false-alarm rate. If the judge fails, the pattern result is returned
    * with mode "patterns (judge unavailable)".
    */
+  /**
+   * Async path: patterns, then the optional model judge, then the optional
+   * Crossref reference check for replies flagged under S1.
+   */
+  async evaluateEnhanced(
+    rawInput: CheckInput,
+    opts: { judge?: Judge; verifyCitations?: boolean; lookup?: (text: string) => Promise<ReferenceLookup[]> } = {},
+  ): Promise<CheckResult> {
+    let result = opts.judge ? await this.evaluateWithJudge(rawInput, opts.judge) : this.evaluate(rawInput);
+    if (!opts.verifyCitations || !result.findings.some((f) => f.signature === "S1")) return result;
+    const lookups = await (opts.lookup ?? lookupReferences)(normalizeText(rawInput.response));
+    if (lookups.length === 0) return result;
+    const found = lookups.filter((l) => l.status === "found").length;
+    const notFound = lookups.filter((l) => l.status === "not_found");
+    const allFound = found === lookups.length;
+    let findings = result.findings;
+    if (allFound) {
+      // Every reference resolves to a real work with matching author and year:
+      // lift the S1 findings (a finding that also names other signatures keeps those).
+      findings = findings.flatMap((f) => {
+        if (f.signature !== "S1") return [f];
+        const other = f.check.startsWith("JUDGE_") ? f.check.replace(/^JUDGE_/, "").split("_").filter((s) => s !== "S1") : [];
+        return other.length ? [{ ...f, signature: (other[0] === "S2A" ? "S2a" : other[0]) as GuardedSignature }] : [];
+      });
+    } else if (notFound.length) {
+      findings = findings.map((f) => f.signature === "S1"
+        ? { ...f, evidence: `${f.evidence} | Not found in Crossref: ${notFound.map((l) => l.reference.slice(0, 80)).join(" ; ")}` }
+        : f);
+    }
+    const verdict = verdictFor(findings);
+    result = {
+      ...result,
+      verdict,
+      riskScore: combineRisk(findings),
+      findings,
+      passed: verdict === "ALLOW",
+      explanation: explain(verdict, findings, result.checksSkipped) + (allFound ? ` [All ${found} cited works were found in Crossref; S1 findings lifted.]` : ""),
+      citationCheck: {
+        source: "crossref",
+        references: lookups.length,
+        found,
+        notFound: notFound.length,
+        unverifiable: lookups.length - found - notFound.length,
+        liftedS1: allFound,
+        lookups,
+      },
+    };
+    return result;
+  }
+
   async evaluateWithJudge(rawInput: CheckInput, judge: Judge): Promise<CheckResult> {
     const base = this.evaluate(rawInput);
     const policy = judge.config.policy;
