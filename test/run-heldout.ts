@@ -19,7 +19,7 @@ const DIR = path.join(HERE, "..", "eval", "heldout");
 const BATCHES = [
   {
     file: "batch1.jsonl",
-    note: "Batch 1 (72 outputs, Nov 12). Its failure classes drove the v0.1.2 detector fixes, so its score now overstates real performance. Measured before those fixes: 56/72 (77.8%); 55/72 (76.4%) with one label corrected in the 2026-11-17 review.",
+    note: "Batch 1 (72 outputs, Nov 12). Its failure classes drove the v0.1.2 detector fixes, so its score now overstates real performance. Measured before those fixes: 56/72 (77.8%); 54/72 (75.0%) with two labels corrected after measurement (ho-31, ho-70; see eval/heldout/README.md).",
   },
   {
     file: "batch2.jsonl",
