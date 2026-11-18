@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — unreleased (branch `v0.2-judge`)
+
+- **Optional model judge** (`src/engine/judge.ts`), configured with the user's own API key: `AEGIS_JUDGE_PROVIDER` (anthropic, openai, google, openai-compatible), `AEGIS_JUDGE_API_KEY`, `AEGIS_JUDGE_MODEL`, `AEGIS_JUDGE_BASE_URL`, `AEGIS_JUDGE_POLICY` (balanced or strict), `AEGIS_JUDGE_TIMEOUT_MS`. Off by default. Balanced policy: the judge decides, S3 pattern hits always count. Falls back to the pattern verdict on any error; the key never appears in results or errors. Results gain `mode`, `judge` and `overruledFindings`; `judge: false` per call; CLI `--no-judge`.
+- **Optional Crossref reference check** (`AEGIS_VERIFY_CITATIONS=crossref`) for replies flagged under S1: all references found lifts S1; not found is listed as evidence and never adds a flag alone.
+- **Measured on held-out batch 10** (108 fresh outputs, labels committed first, Gemini 3.5 Flash as judge): patterns alone 14/20 failures caught, 6/88 wrongly flagged; patterns + judge (balanced) 20/20 caught, 1/88 wrongly flagged. Small sample and a shared rubric; see `eval/heldout/README.md`.
+- 29 new tests (`npm run test:judge`), network stubbed.
+
 ## 0.1.2 — 2026-11-11
 
 Fixes from the third review round.

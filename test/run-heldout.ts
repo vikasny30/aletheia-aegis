@@ -51,7 +51,11 @@ const BATCHES = [
   },
   {
     file: "batch9.jsonl",
-    note: "Batch 9 (144 outputs, Nov 17; Claude Opus 5.5, Claude Sonnet 5.5, GPT-6.2 Sol, GPT-5.5, Gemini 3.1 Pro, Gemini 3.5 Flash, Muse Wonder 1.0, Muse Spark 1.3 via their APIs; Claude outputs labeled by independent models). Measured once after the seventh fix round: 8/15 failures caught, 9/129 good outputs wrongly flagged (accuracy 88.9%, allow-everything 89.6%). The current honest number for frontier models.",
+    note: "Batch 9 (144 outputs, Nov 17; Claude Opus 5.5, Claude Sonnet 5.5, GPT-6.2 Sol, GPT-5.5, Gemini 3.1 Pro, Gemini 3.5 Flash, Muse Wonder 1.0, Muse Spark 1.3 via their APIs; Claude outputs labeled by independent models). Measured once after the seventh fix round: 8/15 failures caught, 9/129 good outputs wrongly flagged (accuracy 88.9%, allow-everything 89.6%). The current honest number for frontier models (patterns only).",
+  },
+  {
+    file: "batch10.jsonl",
+    note: "Batch 10 (108 outputs, Nov 18; Llama 3.2 3B, Apertus 70B, GLM-4.5-Air, GPT-6.2 Astra, GPT-5.4 mini, Claude Haiku 5.5). Labeled before anything ran. This runner scores patterns only (14/20 caught, 6/88 wrongly flagged); with the v0.2 judge (Gemini 3.5 Flash, balanced) it was 20/20 caught, 1/88 wrongly flagged. See eval/heldout/README.md.",
   },
 ];
 

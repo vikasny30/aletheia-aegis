@@ -146,7 +146,7 @@ Pattern matching catches failures with a fixed shape (leaked SSNs, card numbers 
 
 Every result says what ran: `mode` is `patterns`, `patterns+judge`, or `patterns (judge unavailable)`, and `judge` holds the judge's label, signatures and one-line reason. Pattern findings the judge overruled are kept in `overruledFindings`. A single call can skip the judge with `judge: false`; the CLI has `--no-judge`. Your key is sent only to your provider's endpoint and never appears in results, errors or logs. A check with the judge takes about 1–4 seconds and costs a fraction of a cent with the default small models; identical prompt and reply pairs are cached in memory.
 
-In simulations on the held-out set, using an independent model's labels as the judge, the balanced policy caught about 81% of failures (patterns alone: 43%) with no increase in false alarms. Those are estimates; the measured number on a fresh batch is reported under Measured results once it exists.
+Measured on a fresh batch of 108 outputs from six models (batch 10, labeled before anything ran), with Gemini 3.5 Flash as the judge: patterns alone caught 14 of 20 failures and wrongly flagged 6 of 88 good outputs; patterns plus the judge (balanced) caught **20 of 20** and wrongly flagged **1 of 88**. The sample is small (95% interval for the catch rate about 83–100%), and the judge follows nearly the same written rubric the labels were made against, so treat this as strong but early evidence. Details in [`eval/heldout/README.md`](eval/heldout/README.md).
 
 ### Reference check (optional, no key)
 
