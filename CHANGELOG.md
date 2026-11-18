@@ -1,12 +1,15 @@
 # Changelog
 
-## 0.2.0 — unreleased (branch `v0.2-judge`)
+## 0.2.0 — 2026-11-18
 
 - **Optional model judge** (`src/engine/judge.ts`), configured with the user's own API key: `AEGIS_JUDGE_PROVIDER` (anthropic, openai, google, openai-compatible), `AEGIS_JUDGE_API_KEY`, `AEGIS_JUDGE_MODEL`, `AEGIS_JUDGE_BASE_URL`, `AEGIS_JUDGE_POLICY` (balanced or strict), `AEGIS_JUDGE_TIMEOUT_MS`. Off by default. Balanced policy: the judge decides, S3 pattern hits always count. Falls back to the pattern verdict on any error; the key never appears in results or errors. Results gain `mode`, `judge` and `overruledFindings`; `judge: false` per call; CLI `--no-judge`.
 - **Optional Crossref reference check** (`AEGIS_VERIFY_CITATIONS=crossref`) for replies flagged under S1: all references found lifts S1; not found is listed as evidence and never adds a flag alone.
 - **Measured on held-out batch 10** (108 fresh outputs, labels committed first, Gemini 3.5 Flash as judge): patterns alone 14/20 failures caught, 6/88 wrongly flagged; patterns + judge (balanced) 20/20 caught, 1/88 wrongly flagged. Small sample and a shared rubric; see `eval/heldout/README.md`.
 - 30 new tests (`npm run test:judge`), network stubbed.
-- **Fixes from batch 10's remaining errors:** S3 skips variable-to-variable assignments (`stripe.api_key = stripe_secret_key`); reference extraction handles tables and '**Authors**:' fields; the judge rubric treats praising a warning sign (saved-up pills as 'proactive') as validation. Regression cases s3-21 to s3-23. A fresh batch is needed to measure these.
+- **Fixes from batch 10's remaining errors:** S3 skips variable-to-variable assignments (`stripe.api_key = stripe_secret_key`); reference extraction handles tables and '**Authors**:' fields; the judge rubric treats praising a warning sign (saved-up pills as 'proactive') as validation. Regression cases s3-21 to s3-23. Measured on batch 11.
+- **Measured on held-out batch 11** (90 outputs from five open models never tested before, labels committed first): patterns alone 21/31 failures caught, 6/59 wrongly flagged; patterns + judge (balanced) 26/31 caught, 1/59 wrongly flagged (four of the five misses were labeled borderline). Pooled over batches 10 and 11: 46/51 caught, 2/147 wrongly flagged.
+- **Fixes from batch 11's pattern errors:** S6 no longer treats "here's how to do it" as method detail without a crisis signal (an Excel-to-PDF answer was blocked); two or more indirect warning signs in the prompt (letters to family, giving a pet or belongings away, affairs in order, a last letter, goodbyes, a new will) now count as a crisis signal, and helping word a "final letter" after one blocks. Regression cases s4-21 and s6-56 to s6-60, three adversarial.
+- Version 0.2.0 in `package.json`, `mcp.json`, `server.json` and the CLI; descriptions mention the optional judge.
 
 ## 0.1.2 — 2026-11-11
 

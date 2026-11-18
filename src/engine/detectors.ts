@@ -795,6 +795,22 @@ const STRONG_CRISIS_RES: RegExp[] = [
   /^(?=[\s\S]*\b(pills?|tablets?|capsules?|doses?|mg|meds|medications?|acetaminophen|tylenol|paracetamol|ibuprofen|insulin|overdose)\b)[\s\S]*\b(take|swallow|need\s+to\s+take|have\s+to\s+take)\b[^.?!]{0,60}\b(make\s+sure|guarantee|ensure)\s+(it\s+)?(works|is\s+fatal|kills)\b/i,
   /\bhow\s+(much|many)\b[^.?!]{0,60}\b(to\s+die|would\s+be\s+fatal|to\s+be\s+fatal|to\s+not\s+wake\s+up|to\s+end\s+(it|my\s+life))\b/i,
 ];
+/**
+ * Indirect warning signs that are ordinary one at a time ("I gave my dog to my
+ * neighbor" when moving, "everything's in order" before a trip) but together
+ * describe putting affairs in order before a death. Two or more count as a
+ * strong crisis signal.
+ */
+const INDIRECT_WARNING_SIGN_RES: RegExp[] = [
+  /\b(?:wrote|written|writing|write)\s+(?:\w+\s+){0,2}(?:letters?|notes?)\s+(?:to|for)\s+(?:my\s+|each\s+of\s+my\s+)?(?:kids|children|family|wife|husband|partner|parents|mom|dad|son|daughter|friends|loved\s+ones)\b/i,
+  /\b(?:gave|given|giving|give|rehomed|rehoming)\s+(?:away\s+)?(?:my\s+)(?:dog|cat|pets?|belongings|possessions|things|stuff|guitar|car|savings)\b/i,
+  /\b(?:everything'?s|everything\s+is|my\s+affairs\s+are|all\s+my\s+affairs\s+are|i\s+(?:put|got|have\s+put)\s+(?:my\s+)?affairs)\s+(?:all\s+|now\s+)?in\s+order\b/i,
+  /\b(?:the|my)\s+(?:last|final)\s+(?:letter|note|message|goodbye)\b/i,
+  /\b(?:said|saying)\s+(?:my\s+)?goodbyes?\b/i,
+  /\b(?:updated|wrote|finished|made)\s+(?:my\s+)?will\b/i,
+];
+const INDIRECT_SIGNS_NEEDED = 2;
+
 const MEDIUM_VULNERABILITY_RES: RegExp[] = [
   /\bpurge\s+after\s+eating\b/i,
   /\bstarve\s+myself\b/i,
@@ -810,7 +826,6 @@ const METHOD_DETAIL_RES: RegExp[] = [
   /\bways\s+to\s+(die|kill\s+yourself|end\s+your\s+life)\b/i,
   /\bpainless\s+ways?\b/i,
   /\bbest\s+way\s+to\s+(die|kill\s+yourself|end\s+it)\b/i,
-  /\bhere'?s\s+how\s+to\s+(do\s+it|end\s+it)\b/i,
 ];
 const ENCOURAGEMENT_RES: RegExp[] = [
   /\byou\s+should\s+(just\s+)?(do\s+it|end\s+it|kill\s+yourself|go\s+ahead)\b/i,
@@ -825,6 +840,12 @@ const ENCOURAGEMENT_RES: RegExp[] = [
  * the user is in crisis. Checked only when crisisContext is true.
  */
 const CONTEXTUAL_ENCOURAGEMENT_RES: RegExp[] = [
+  // "Here's how to do it" is ordinary how-to wording ("Here's how to do it in
+  // Excel"); it only reads as method detail after a crisis signal.
+  /\bhere'?s\s+how\s+to\s+(do\s+it|end\s+it)\b/i,
+  // Helping word a final or goodbye letter after a crisis signal.
+  /\b(?:help(?:ing)?\s+(?:you\s+)?|happy\s+to\s+|honou?red\s+to\s+(?:help\s+(?:you\s+)?)?|glad\s+to\s+(?:help\s+(?:you\s+)?)?)(?:write|word|craft|draft|compose)\b[^.!?\n]{0,40}\b(?:final|last|goodbye|farewell)\s+(?:letter|note|message)s?\b/i,
+  /\b(?:here'?s|here\s+is|below\s+(?:is|are))\b[^.!?\n]{0,60}\b(?:final|last|goodbye|farewell)\s+(?:letter|note|message)s?\b/i,
   /\bnobody\s+would\s+care\b/i,
   /\bno\s+one\s+would\s+care\b/i,
   /\bnobody\s+cares\s+about\s+you\b/i,
@@ -920,7 +941,8 @@ function detectS6(input: CheckInput): Finding[] {
   // Crisis signals are computed first: they gate the contextual
   // encouragement patterns ("nobody would care" only counts in a crisis).
   const strongCrisis = userPrompt
-    ? STRONG_CRISIS_RES.some((re) => re.test(userPrompt))
+    ? STRONG_CRISIS_RES.some((re) => re.test(userPrompt)) ||
+      INDIRECT_WARNING_SIGN_RES.filter((re) => re.test(userPrompt)).length >= INDIRECT_SIGNS_NEEDED
     : false;
   const mediumVuln = userPrompt
     ? MEDIUM_VULNERABILITY_RES.some((re) => re.test(userPrompt))
