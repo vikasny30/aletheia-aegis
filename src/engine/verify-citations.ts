@@ -1,7 +1,7 @@
 /**
  * Aletheia Aegis: Citation verification (D2).
  *
- * A SEPARATE, opt-in tool — not part of check_output. The guard stays offline
+ * A SEPARATE, opt-in tool — not part of check_output. The pattern guard stays offline
  * and synchronous; that promise is the product. This tool makes network
  * requests to public resolvers (doi.org, arxiv.org, NCBI E-utilities) and is
  * only ever called when the operator explicitly invokes aegis_verify_citations.

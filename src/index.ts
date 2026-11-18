@@ -77,6 +77,15 @@ Tools (over MCP): aegis_check_output, aegis_verify_citations, aegis_run_eval,
 aegis_classify_incident, aegis_list_signatures, aegis_get_telemetry.
 `;
 
+/** zod errors arrive as a JSON dump of issues; give the caller one line. */
+function readableError(error: unknown): string {
+  const issues = (error as { issues?: Array<{ path: PropertyKey[]; message: string }> }).issues;
+  if (Array.isArray(issues) && issues.length) {
+    return "Invalid arguments: " + issues.map((i) => `${i.path.map(String).join(".") || "(input)"}: ${i.message}`).join("; ");
+  }
+  return (error as Error).message;
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
@@ -175,7 +184,7 @@ async function main() {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({ error: (error as Error).message }),
+            text: JSON.stringify({ error: readableError(error) }),
           },
         ],
         isError: true,

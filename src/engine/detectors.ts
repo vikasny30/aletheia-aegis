@@ -386,21 +386,24 @@ const CONNECTION_TEMPLATE_RE =
  * reason, reference text). A blocked secret must never come back verbatim in
  * the result that reports it.
  */
+// Every pattern below needs a run of 3+ digits or a key-like marker.
+const MAY_HOLD_SECRET_RE = /\d{3}|sk-|_live_|_test_|AKIA|ghp_|xox|PRIVATE KEY|api[_-]?key|secret|passw|token/i;
+const SSN_FAMILY = [SSN_RE, SSN_SPACE_RE, SSN_ALT_SEP_RE];
+const CARD_FAMILY = [CARD_CANDIDATE_RE, CARD_DOTTED_RE];
+const maskCard = (m: string) => {
+  const digits = m.replace(/[ .-]/g, "");
+  return /^\d{13,19}$/.test(digits) && luhnValid(digits) ? `****${digits.slice(-4)}` : m;
+};
 export function redactSecrets(text: string): string {
-  if (!text) return text;
+  if (!text || !MAY_HOLD_SECRET_RE.test(text)) return text;
+  // String.replace with a global regex resets lastIndex before and after, so
+  // the shared, precompiled patterns are safe to reuse here.
   let out = text;
-  for (const re of [SSN_RE, SSN_SPACE_RE, SSN_ALT_SEP_RE]) out = out.replace(new RegExp(re.source, re.flags), (m) => maskSsn(m));
-  out = out.replace(new RegExp(SSN_LABELED_RE.source, SSN_LABELED_RE.flags), (m, d: string) => m.replace(d, maskSsn(d)));
-  for (const re of [CARD_CANDIDATE_RE, CARD_DOTTED_RE]) {
-    out = out.replace(new RegExp(re.source, re.flags), (m) => {
-      const digits = m.replace(/[ .-]/g, "");
-      return /^\d{13,19}$/.test(digits) && luhnValid(digits) ? `****${digits.slice(-4)}` : m;
-    });
-  }
-  for (const { re } of API_KEY_RES) {
-    out = out.replace(new RegExp(re.source, re.flags), (m) => (KNOWN_TEST_KEYS.has(m) ? m : maskSecret(m)));
-  }
-  out = out.replace(new RegExp(CREDENTIAL_PAIR_RE.source, CREDENTIAL_PAIR_RE.flags), (m, _k: string, _q: string, v: string) =>
+  for (const re of SSN_FAMILY) out = out.replace(re, (m) => maskSsn(m));
+  out = out.replace(SSN_LABELED_RE, (m, d: string) => m.replace(d, maskSsn(d)));
+  for (const re of CARD_FAMILY) out = out.replace(re, maskCard);
+  for (const { re } of API_KEY_RES) out = out.replace(re, (m) => (KNOWN_TEST_KEYS.has(m) ? m : maskSecret(m)));
+  out = out.replace(CREDENTIAL_PAIR_RE, (m, _k: string, _q: string, v: string) =>
     CREDENTIAL_REFERENCE_RE.test(v) || PLACEHOLDER_VALUE_RE.test(v) ? m : m.replace(v, "********"));
   return out;
 }

@@ -297,5 +297,36 @@ await check("tool: a caller can't switch off the operator's judge unless the ope
   assert(denied === 1 && calls === 1, `calls after denied opt-out ${denied}, after allowed ${calls}`);
 });
 
+// Found by live-testing every provider's default model.
+await check("anthropic: no sampling parameters (current Claude models reject them); room for thinking", async () => {
+  const calls: any[] = [];
+  await new Judge(cfg({ provider: "anthropic", model: "claude-haiku-5-5" }), stub('{"label":"allow","signatures":[],"reason":"ok"}', calls)).review("r", "p");
+  const b = calls[0].body;
+  assert(!("temperature" in b) && !("top_p" in b) && !("top_k" in b) && b.max_tokens >= 2000 && b.output_config?.effort === "low", JSON.stringify(b).slice(0, 200));
+});
+await check("config: AEGIS_JUDGE_TIMEOUT_MS must be 1000-120000", () => {
+  const c = (v: string) => judgeConfigFromEnv({ AEGIS_JUDGE_PROVIDER: "openai", OPENAI_API_KEY: "k", AEGIS_JUDGE_TIMEOUT_MS: v }) as any;
+  assert(c("-5").error && c("abc").error && c("999999").error && c("15000").timeoutMs === 15000, "timeout validation");
+});
+await check("judge failure is reported on stderr once per kind, and never with the key", async () => {
+  const logged: string[] = []; const orig = console.error; console.error = (m: string) => { logged.push(m); };
+  try {
+    const j = new Judge(cfg(), (async () => ({ ok: false, status: 400, json: async () => ({}), text: async () => `bad request for ${KEY}` })) as any);
+    for (let i = 0; i < 3; i++) { try { await j.review(`reply ${i}`); } catch { /* expected */ } }
+  } finally { console.error = orig; }
+  assert(logged.length === 1 && /Judge call failed/.test(logged[0]) && !logged[0].includes(KEY), JSON.stringify(logged));
+});
+await check("telemetry: totals and rates count every evaluation, not just the last 200 audit records", async () => {
+  const { Telemetry } = await import("../src/engine/telemetry.js");
+  const t = new Telemetry();
+  for (let i = 0; i < 250; i++) t.record(ev.evaluate({ response: i % 2 ? "Take 4000 mg of ibuprofen daily." : "Hello there." }), 10, false);
+  const s = t.summary();
+  assert(s.totalEvaluations === 250 && s.verdicts.flag === 125 && s.flagRatePercent === 50 && t.auditLog(500).length === 200, JSON.stringify(s.verdicts));
+});
+await check("scorecards name files relative to the package or cwd, never by home-directory path", async () => {
+  const { runGuardEval } = await import("../src/engine/eval.js");
+  assert(runGuardEval().casesFile === "eval/cases.jsonl", runGuardEval().casesFile);
+});
+
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);
 if (failed) process.exit(1);

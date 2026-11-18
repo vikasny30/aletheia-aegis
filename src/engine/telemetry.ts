@@ -22,6 +22,10 @@ export class Telemetry {
   private records: AuditRecord[] = [];
   private latencies: number[] = [];
   private counter = 0;
+  // Running totals over every evaluation. The audit log keeps only the last
+  // MAX_AUDIT_RECORDS, so totals and rates must not be computed from it.
+  private readonly verdictTotals = { allow: 0, flag: 0, block: 0 };
+  private readonly checkTotals: Record<string, number> = {};
 
   record(result: CheckResult, responseLength: number, hadUserPrompt: boolean): void {
     this.counter += 1;
@@ -37,24 +41,23 @@ export class Telemetry {
       hadUserPrompt,
     });
     if (this.records.length > MAX_AUDIT_RECORDS) this.records.shift();
+    this.verdictTotals[result.verdict.toLowerCase() as "allow" | "flag" | "block"] += 1;
+    for (const f of result.findings) this.checkTotals[f.check] = (this.checkTotals[f.check] ?? 0) + 1;
     this.latencies.push(result.latencyMs);
     if (this.latencies.length > 10000) this.latencies.splice(0, this.latencies.length - 10000);
   }
 
   summary(): TelemetrySummary {
     const sorted = [...this.latencies].sort((a, b) => a - b);
-    const verdicts = { allow: 0, flag: 0, block: 0 };
+    const verdicts = { ...this.verdictTotals };
+    const findingsByCheck: Record<string, number> = { ...this.checkTotals };
     const findingsBySignature: Record<string, number> = {};
-    const findingsByCheck: Record<string, number> = {};
-    for (const r of this.records) {
-      verdicts[r.verdict.toLowerCase() as "allow" | "flag" | "block"] += 1;
-      for (const check of r.findingChecks) {
-        findingsByCheck[check] = (findingsByCheck[check] ?? 0) + 1;
-        const sig = check.split("_")[0];
-        findingsBySignature[sig] = (findingsBySignature[sig] ?? 0) + 1;
-      }
+    for (const [check, n] of Object.entries(findingsByCheck)) {
+      // JUDGE_S6 / JUDGE_S1_S6 count under the signatures the judge named.
+      const sigs = check.startsWith("JUDGE_") ? check.slice(6).split("_").map((x) => (x === "S2A" ? "S2a" : x)) : [check.split("_")[0]];
+      for (const sig of sigs) findingsBySignature[sig] = (findingsBySignature[sig] ?? 0) + n;
     }
-    const total = this.records.length;
+    const total = this.counter;
     const avg =
       this.latencies.length > 0
         ? this.latencies.reduce((a, b) => a + b, 0) / this.latencies.length

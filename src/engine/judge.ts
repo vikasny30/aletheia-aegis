@@ -89,7 +89,9 @@ export function judgeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): JudgeC
     if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return { error: "AEGIS_JUDGE_BASE_URL must use https (plain http is allowed only for localhost), so the API key is not sent unencrypted." };
     if (u.username || u.password) return { error: "AEGIS_JUDGE_BASE_URL must not contain credentials; put the key in AEGIS_JUDGE_API_KEY." };
   }
-  const timeoutMs = Number(env.AEGIS_JUDGE_TIMEOUT_MS ?? 20000) || 20000;
+  const rawTimeout = Number(env.AEGIS_JUDGE_TIMEOUT_MS ?? 20000);
+  if (!Number.isFinite(rawTimeout) || rawTimeout < 1000 || rawTimeout > 120000) return { error: `AEGIS_JUDGE_TIMEOUT_MS must be a number of milliseconds from 1000 to 120000 (got "${env.AEGIS_JUDGE_TIMEOUT_MS}").` };
+  const timeoutMs = rawTimeout;
   const policy: JudgePolicy = (env.AEGIS_JUDGE_POLICY ?? "").trim().toLowerCase() === "strict" ? "strict" : "balanced";
   return { provider, apiKey, model, baseUrl: baseUrl || undefined, timeoutMs, policy };
 }
@@ -163,7 +165,9 @@ async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike
   switch (cfg.provider) {
     case "anthropic": {
       const d = await post("https://api.anthropic.com/v1/messages", { "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01" },
-        { model: cfg.model, max_tokens: 400, temperature: 0, system: JUDGE_RUBRIC, messages: [{ role: "user", content: user }] });
+        // No temperature: current Claude models reject sampling parameters. They
+        // think by default, so leave room for it and keep the effort low.
+        { model: cfg.model, max_tokens: 4000, output_config: { effort: "low" }, system: JUDGE_RUBRIC, messages: [{ role: "user", content: user }] });
       return (d.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
     }
     case "google": {
@@ -194,6 +198,7 @@ function clip(text: string, max: number): string {
 
 export class Judge {
   private readonly cache = new Map<string, Omit<JudgeVerdict, "cached" | "latencyMs">>();
+  private readonly reported = new Set<string>();
   constructor(readonly config: JudgeConfig, private readonly fetchImpl: FetchLike = fetch as unknown as FetchLike, private readonly cacheSize = 500) {}
 
   async review(response: string, userPrompt?: string): Promise<JudgeVerdict> {
@@ -214,8 +219,17 @@ export class Judge {
       if (this.cache.size > this.cacheSize) this.cache.delete(this.cache.keys().next().value as string);
       return { ...verdict, cached: false, latencyMs: Date.now() - started };
     } catch (e) {
-      const msg = (e as Error).name === "AbortError" ? `timed out after ${this.config.timeoutMs} ms` : (e as Error).message;
-      throw new Error(this.config.apiKey ? msg.split(this.config.apiKey).join("[key]") : msg);
+      const raw = (e as Error).name === "AbortError" ? `timed out after ${this.config.timeoutMs} ms` : (e as Error).message;
+      const msg = this.config.apiKey ? raw.split(this.config.apiKey).join("[key]") : raw;
+      // A judge that always fails would otherwise fall back to patterns in
+      // silence. Tell the operator once per distinct error (on stderr, which
+      // MCP clients keep as the server log).
+      const kind = msg.replace(/\d+/g, "#").slice(0, 120);
+      if (!this.reported.has(kind) && this.reported.size < 20) {
+        this.reported.add(kind);
+        console.error(`[Aletheia Aegis] Judge call failed (${this.config.provider}/${this.config.model}): ${msg.slice(0, 300)} - using the pattern verdict.`);
+      }
+      throw new Error(msg);
     } finally {
       clearTimeout(timer);
     }

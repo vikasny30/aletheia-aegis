@@ -1,6 +1,6 @@
 # Aletheia Aegis — Output Guard & Eval Harness
 
-Deterministic, sub-millisecond guard for **what a model says** — checked before the response reaches the user. No LLM in the hot path. A first-line pre-filter, not a guarantee.
+Deterministic, sub-millisecond guard for **what a model says** — checked before the response reaches the user. No LLM in the hot path by default; an optional model judge, with your own API key, catches far more. A first-line pre-filter, not a guarantee.
 
 Aegis is the companion to [aletheia-mcp](https://github.com/vikasny30/aletheia-mcp), which guards tool calls *before they execute* (scope creep S3, prompt injection S2b). Aegis guards the other side: the model's own output. The two servers share the [Aletheia taxonomy](https://github.com/vikasny30/aletheia-paper) — nine behavioral failure signatures validated against 2,571 incident entries — and split it by layer, not by duplicating it.
 
@@ -85,7 +85,7 @@ then call `aegis_check_output` with a response and a user prompt.
 
 | Tool | What it does |
 |---|---|
-| `aegis_check_output` | Check one response. `{response, user_prompt?, context?, locale?, block_checks?}` → verdict, findings with evidence and remediation, risk score, latency. Offline and synchronous — it never makes network requests. |
+| `aegis_check_output` | Check one response. `{response, user_prompt?, context?, locale?, block_checks?, judge?}` → verdict, findings with evidence and remediation, risk score, latency. By default offline and synchronous (no network requests); it calls the network only if the operator configured the model judge or the Crossref reference check (see Configuration). |
 | `aegis_verify_citations` | Opt-in citation verification, separate from the guard. Resolves DOI, arXiv, and PMID identifiers in the text against their public resolvers and reports verified / not_found / unverifiable / unsupported per citation. This tool makes network requests; `aegis_check_output` never does. An existing identifier is not a true claim — it answers only "does this identifier resolve?". |
 | `aegis_run_eval` | Score the guard. `mode: "guard"` runs the bundled labeled case set; `mode: "corpus"` classifies a JSONL incident file against the paper's §3.3 distribution. Returns JSON plus a Markdown scorecard. |
 | `aegis_classify_incident` | Classify incident text with the paper's keyword classifier (Appendix C): per-signature confidence, `min(1.0, hits × 0.4)`, threshold 0.3. For corpus work, not live guarding. |
@@ -98,7 +98,7 @@ Prompt: `aegis_output_review` — rewrite a flagged response so it passes the gu
 
 ## Measured results
 
-Measured November 11, 2026 on this repository's own test suite (`npm test`, `npm run test:fp`, `npm run benchmark`, `npm run eval`, `npm run eval:redteam`, `npm run eval:heldout`). The numbers that matter first are latency and false positives — the eval percentage comes last, with its caveat attached.
+Measured November 11–18, 2026 on this repository's own test suite (`npm test`, `npm run test:fp`, `npm run benchmark`, `npm run eval`, `npm run eval:redteam`, `npm run eval:heldout`). The numbers that matter first are latency and false positives — the eval percentage comes last, with its caveat attached.
 
 - **Latency:** 10,000 evaluations, p95 **0.012–0.029 ms** across runs and machines (v0.1.2: avg 0.009 ms, p95 0.012 ms on a Mac; 50,000–140,000 evals/sec depending on machine load). First call in a fresh process is slower (cold JIT, a few ms); steady state is well under a millisecond.
 - **False-positive sweep:** 90 everyday benign responses — everyday chat, code traffic (test cards, test keys, example credentials), hedged academic text, non-advice medical talk, and everyday instructions ("take two pills with water", "cut the rope to length") — **0 blocked, 0 flagged.**
@@ -214,14 +214,15 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 - **S1 cannot tell a real statistic from a confabulated one** when the model attributes it to the source the user named ("According to the 2023 SHED report, 22%…"). It reads as sourced. A recurring held-out miss, documented rather than patched.
 - **Crisis resources are locale-aware** (`locale` param or `AEGIS_LOCALE`): US, GB, IE, CA, AU, NZ, IN. Unknown locales fall back to US resources plus the international directory (findahelpline.com). The numbers live in one place, `src/engine/crisis-resources.ts` — if a helpline changes, fix it there.
 - **S8 is not covered** until the session auditor exists. Single-response guarding cannot see aggregate harm.
-- **No response text is ever stored** in telemetry or the audit log — only verdicts, finding checks, latency, and response length. Finding evidence is capped at 120 characters, and secrets/PII are masked in evidence, never reproduced raw. The opt-in debug log (`AEGIS_DEBUG_LOG`) is the one exception, and it is off by default.
+- **No response text is ever stored** in telemetry or the audit log — only verdicts, finding checks, latency, and response length. Finding evidence is capped at 120 characters, and secrets/PII are masked in evidence, never reproduced raw. The opt-in debug log (`AEGIS_DEBUG_LOG`) is the one exception, and it is off by default. If you turn on the model judge, each reply and prompt is sent to the provider you chose, under that provider's data terms.
 
 ## Development
 
 ```bash
 npm install
 npm run build        # tsc
-npm test             # guard tests + eval-set assertions (41 checks)
+npm test             # guard tests + eval-set assertions (45 checks)
+npm run test:judge   # model judge, reference check and security tests, network stubbed (51 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)

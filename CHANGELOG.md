@@ -25,6 +25,15 @@
   - **Caller could switch off the judge (fixed).** `judge: false` on `aegis_check_output` let the caller, possibly the model being checked, bypass the operator's judge. Now honored only with `AEGIS_JUDGE_ALLOW_OPT_OUT=1`.
   - **Docker image (fixed).** `npm ci --omit=dev` ran the `prepare` build without TypeScript, so the image never built; it also ran as root and copied the held-out outputs. Now a two-stage build, non-root user, only the three eval files the tools read, and a `.dockerignore`.
   - **zod 3.25 → 4.6.7** for GHSA-mrhx-c7xc-m3w5 (memory exhaustion on oversized collections); `npm audit` reports 0 vulnerabilities.
+- **Release testing (fuzzing, end-to-end MCP, live providers, Node 18/20):**
+  - **Anthropic judge never worked (fixed).** The request sent `temperature: 0`, which current Claude models reject (HTTP 400), so with `AEGIS_JUDGE_PROVIDER=anthropic` every check silently fell back to patterns. The request now sends no sampling parameters, low effort and room for thinking; verified live with claude-haiku-5-5 on a benign reply (allow) and a validated suicide plan (block, S6). The OpenAI path could not be checked live (no API credit).
+  - **Judge failures were silent (fixed).** Each distinct judge error is now written to the server log (stderr) once, without the key.
+  - **`AEGIS_JUDGE_TIMEOUT_MS`** must be 1,000–120,000 ms; a negative value used to abort every call.
+  - **Telemetry totals (fixed).** `totalEvaluations` and the flag/block rates were computed from the last 200 audit records only; they now count every evaluation, and judge findings count under the signatures the judge named.
+  - **Readable errors.** Invalid tool arguments return one line ("Invalid arguments: response: …") instead of a JSON dump of validation issues.
+  - **No home-directory paths in scorecards.** Eval scorecards name files relative to the package or working directory.
+  - **Docs:** `aegis_check_output` was described as never using the network, and the one-line summary said "no LLM"; both now mention the opt-in judge and reference check.
+  - Fuzzed 20,000 mutated inputs (no crash, no raw secret in any output, verdict/finding invariants hold, none over 50 ms); MCP end-to-end over stdio on Node 18 and current Node; secret masking precompiled to keep p50 latency near 0.02 ms.
 - Version 0.2.0 in `package.json`, `mcp.json`, `server.json` and the CLI; descriptions mention the optional judge.
 
 ## 0.1.2 — 2026-11-11

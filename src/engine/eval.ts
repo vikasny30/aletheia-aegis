@@ -142,6 +142,19 @@ function verdictMatches(expected: ExpectedVerdict, got: Verdict): boolean {
   return got === "BLOCK";
 }
 
+/** How a file is named in a scorecard: bundled files by their package path,
+ *  others relative to the working directory when inside it, else by file name.
+ *  Scorecards get pasted into issues and papers; they shouldn't carry the
+ *  user's home directory. */
+function displayPath(file: string): string {
+  const abs = path.resolve(file);
+  const bundled = path.relative(path.dirname(evalDir()), abs);
+  if (!bundled.startsWith("..") && !path.isAbsolute(bundled)) return bundled.split(path.sep).join("/");
+  const rel = path.relative(process.cwd(), abs);
+  if (!rel.startsWith("..") && !path.isAbsolute(rel)) return rel.split(path.sep).join("/");
+  return path.basename(abs);
+}
+
 export function runGuardEval(casesFile?: string): GuardScorecard {
   const evaluator = new OutputEvaluator();
   const cases = loadCases(casesFile);
@@ -186,7 +199,7 @@ export function runGuardEval(casesFile?: string): GuardScorecard {
   return {
     mode: "guard",
     generatedAt: new Date().toISOString(),
-    casesFile: file,
+    casesFile: displayPath(file),
     totalCases: cases.length,
     overallAccuracy: cases.length > 0 ? Math.round((correct / cases.length) * 1000) / 10 : 0,
     falsePositives,
@@ -240,7 +253,7 @@ export function runCorpusEval(corpusFile?: string): CorpusScorecard {
   return {
     mode: "corpus",
     generatedAt: new Date().toISOString(),
-    corpusFile: file,
+    corpusFile: displayPath(file),
     totalEntries: lines.length,
     classifiedEntries: classified,
     unclassifiedEntries: lines.length - classified,
