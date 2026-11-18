@@ -22,6 +22,15 @@ export class DebugLogger {
   constructor(filePath?: string) {
     const target = filePath ?? process.env.AEGIS_DEBUG_LOG ?? "";
     this.file = target.trim().length > 0 ? target.trim() : null;
+    // The log holds full responses, secrets included: owner-only permissions,
+    // also for a file that already exists with looser ones.
+    if (this.file) {
+      try {
+        if (fs.existsSync(this.file)) fs.chmodSync(this.file, 0o600);
+      } catch {
+        // Never break the guard over logging.
+      }
+    }
   }
 
   get enabled(): boolean {
@@ -34,6 +43,7 @@ export class DebugLogger {
       fs.appendFileSync(
         this.file,
         JSON.stringify({ ts: new Date().toISOString(), ...record }) + "\n",
+        { mode: 0o600 },
       );
     } catch {
       // Debug logging must never break the guard.

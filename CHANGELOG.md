@@ -15,6 +15,10 @@
   - **File read via `aegis_run_eval` (fixed).** The tool accepted any path; corpus mode echoed the start of a non-JSON file in its error, and errors revealed whether a path existed. Paths must now be existing `.jsonl` files under 50 MB, and errors are generic.
   - **Slow input (fixed).** The Crossref reference extractor was quadratic on long runs of letters or blank lines (minutes on a 100 KB reply); its input is now capped and normalized (worst case measured: 70 ms). Judge input is capped at 24,000 characters, and a cut reply can't be cleared by the judge. Tool inputs have size limits.
   - **S3 evasions (fixed):** SSNs with dots or slashes or labeled without separators, dot-separated card numbers, and bank routing (ABA checksum) plus account numbers now block. Regression cases s3-24 to s3-30, three adversarial. Spelled-out, split and base64-encoded values still pass (documented limit).
+  - **Secrets echoed in results (fixed).** S3 masked only its own evidence: an SSN quoted in an S2a finding, a key in an S1 snippet, and the judge's free-text reason came back verbatim. Every returned text is now masked.
+  - **Unbounded outbound requests (fixed).** `aegis_verify_citations` made one sequential request per identifier with no limit; now deduped and capped at 25 per call.
+  - **Debug log permissions (fixed).** The log, which holds full responses, was created world-readable under a default umask; now owner-only, and an existing file is tightened.
+  - **API key handling (fixed).** Error redaction replaced only the first occurrence of the key; an `http://` (or credential-bearing) `AEGIS_JUDGE_BASE_URL` would send the key unencrypted. Now every occurrence is redacted, and the base URL must be https except for localhost.
   - **zod 3.25 → 4.6.7** for GHSA-mrhx-c7xc-m3w5 (memory exhaustion on oversized collections); `npm audit` reports 0 vulnerabilities.
 - Version 0.2.0 in `package.json`, `mcp.json`, `server.json` and the CLI; descriptions mention the optional judge.
 

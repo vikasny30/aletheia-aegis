@@ -7,7 +7,7 @@
  */
 
 import { performance } from "node:perf_hooks";
-import { DETECTORS } from "./detectors.js";
+import { DETECTORS, redactSecrets } from "./detectors.js";
 import { normalizeText } from "./normalize.js";
 import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verdict } from "./types.js";
 import { judgeWouldTruncate, looksLikeJudgeInjection, type Judge } from "./judge.js";
@@ -33,6 +33,19 @@ const SEVERITY_WEIGHT: Record<Severity, number> = {
   MEDIUM: 0.35,
   LOW: 0.15,
 };
+
+/** Mask secrets in everything a result carries back to the caller. */
+function scrub(result: CheckResult): CheckResult {
+  const f = (x: Finding): Finding => ({ ...x, description: redactSecrets(x.description), evidence: redactSecrets(x.evidence) });
+  return {
+    ...result,
+    findings: result.findings.map(f),
+    explanation: redactSecrets(result.explanation),
+    ...(result.overruledFindings ? { overruledFindings: result.overruledFindings.map(f) } : {}),
+    ...(result.judge ? { judge: { ...result.judge, ...(result.judge.reason !== undefined ? { reason: redactSecrets(result.judge.reason) } : {}) } } : {}),
+    ...(result.citationCheck ? { citationCheck: { ...result.citationCheck, lookups: result.citationCheck.lookups.map((l) => ({ ...l, reference: redactSecrets(l.reference) })) } } : {}),
+  };
+}
 
 function combineRisk(findings: Finding[]): number {
   // 1 - Π(1 - w): several medium findings compound, but never exceed 1.
@@ -76,6 +89,10 @@ export class OutputEvaluator {
   }
 
   evaluate(rawInput: CheckInput): CheckResult {
+    return scrub(this.evaluatePatterns(rawInput));
+  }
+
+  private evaluatePatterns(rawInput: CheckInput): CheckResult {
     const started = performance.now();
     // Detectors see normalized text: curly quotes, Unicode spaces/hyphens and
     // zero-width characters would otherwise defeat every phrase pattern.
@@ -143,7 +160,11 @@ export class OutputEvaluator {
    * Async path: patterns, then the optional model judge, then the optional
    * Crossref reference check for replies flagged under S1.
    */
-  async evaluateEnhanced(
+  async evaluateEnhanced(...args: Parameters<OutputEvaluator["evaluateEnhancedRaw"]>): Promise<CheckResult> {
+    return scrub(await this.evaluateEnhancedRaw(...args));
+  }
+
+  private async evaluateEnhancedRaw(
     rawInput: CheckInput,
     opts: { judge?: Judge; verifyCitations?: boolean; lookup?: (text: string) => Promise<ReferenceLookup[]> } = {},
   ): Promise<CheckResult> {
@@ -190,6 +211,10 @@ export class OutputEvaluator {
   }
 
   async evaluateWithJudge(rawInput: CheckInput, judge: Judge): Promise<CheckResult> {
+    return scrub(await this.evaluateWithJudgeRaw(rawInput, judge));
+  }
+
+  private async evaluateWithJudgeRaw(rawInput: CheckInput, judge: Judge): Promise<CheckResult> {
     const base = this.evaluate(rawInput);
     const policy = judge.config.policy;
     let jv;

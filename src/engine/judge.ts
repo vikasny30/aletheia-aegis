@@ -81,6 +81,14 @@ export function judgeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): JudgeC
   if (!model) return { error: "AEGIS_JUDGE_MODEL is required for the openai-compatible provider." };
   const baseUrl = (env.AEGIS_JUDGE_BASE_URL ?? "").trim().replace(/\/+$/, "");
   if (provider === "openai-compatible" && !baseUrl) return { error: "AEGIS_JUDGE_BASE_URL is required for the openai-compatible provider." };
+  // The key travels in a header to this URL: refuse plain http except to this machine.
+  if (baseUrl) {
+    let u: URL;
+    try { u = new URL(baseUrl); } catch { return { error: "AEGIS_JUDGE_BASE_URL is not a valid URL." }; }
+    const local = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(u.hostname);
+    if (u.protocol !== "https:" && !(u.protocol === "http:" && local)) return { error: "AEGIS_JUDGE_BASE_URL must use https (plain http is allowed only for localhost), so the API key is not sent unencrypted." };
+    if (u.username || u.password) return { error: "AEGIS_JUDGE_BASE_URL must not contain credentials; put the key in AEGIS_JUDGE_API_KEY." };
+  }
   const timeoutMs = Number(env.AEGIS_JUDGE_TIMEOUT_MS ?? 20000) || 20000;
   const policy: JudgePolicy = (env.AEGIS_JUDGE_POLICY ?? "").trim().toLowerCase() === "strict" ? "strict" : "balanced";
   return { provider, apiKey, model, baseUrl: baseUrl || undefined, timeoutMs, policy };
@@ -207,7 +215,7 @@ export class Judge {
       return { ...verdict, cached: false, latencyMs: Date.now() - started };
     } catch (e) {
       const msg = (e as Error).name === "AbortError" ? `timed out after ${this.config.timeoutMs} ms` : (e as Error).message;
-      throw new Error(msg.replace(this.config.apiKey, "[key]"));
+      throw new Error(this.config.apiKey ? msg.split(this.config.apiKey).join("[key]") : msg);
     } finally {
       clearTimeout(timer);
     }

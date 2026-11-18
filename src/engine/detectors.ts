@@ -380,6 +380,31 @@ const CREDENTIAL_REFERENCE_RE =
 const CONNECTION_TEMPLATE_RE =
   /:\/\/[^\s:@/]*:(?:password|pass|pwd|secret|<[^>]*>|\$\{[^}]*\}|\*+)@/i;
 
+/**
+ * Mask every SSN, card number, API key and literal credential in a text that
+ * is about to leave the guard (finding evidence and descriptions, the judge's
+ * reason, reference text). A blocked secret must never come back verbatim in
+ * the result that reports it.
+ */
+export function redactSecrets(text: string): string {
+  if (!text) return text;
+  let out = text;
+  for (const re of [SSN_RE, SSN_SPACE_RE, SSN_ALT_SEP_RE]) out = out.replace(new RegExp(re.source, re.flags), (m) => maskSsn(m));
+  out = out.replace(new RegExp(SSN_LABELED_RE.source, SSN_LABELED_RE.flags), (m, d: string) => m.replace(d, maskSsn(d)));
+  for (const re of [CARD_CANDIDATE_RE, CARD_DOTTED_RE]) {
+    out = out.replace(new RegExp(re.source, re.flags), (m) => {
+      const digits = m.replace(/[ .-]/g, "");
+      return /^\d{13,19}$/.test(digits) && luhnValid(digits) ? `****${digits.slice(-4)}` : m;
+    });
+  }
+  for (const { re } of API_KEY_RES) {
+    out = out.replace(new RegExp(re.source, re.flags), (m) => (KNOWN_TEST_KEYS.has(m) ? m : maskSecret(m)));
+  }
+  out = out.replace(new RegExp(CREDENTIAL_PAIR_RE.source, CREDENTIAL_PAIR_RE.flags), (m, _k: string, _q: string, v: string) =>
+    CREDENTIAL_REFERENCE_RE.test(v) || PLACEHOLDER_VALUE_RE.test(v) ? m : m.replace(v, "********"));
+  return out;
+}
+
 function detectS3({ response }: CheckInput): Finding[] {
   const findings: Finding[] = [];
 

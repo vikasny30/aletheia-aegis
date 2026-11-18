@@ -217,5 +217,45 @@ await check("floor: a pattern FLAG can still be cleared by the judge", async () 
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
+// Secrets never come back verbatim: not in another detector's evidence, not in
+// the judge's reason.
+await check("redaction: an SSN or key quoted in non-S3 evidence or the judge's reason is masked", async () => {
+  const leak = (r: unknown) => ["529-41-7783", "4539148803436467", "AKIAQ3EGRTPLK7HXZ2MN"].filter((s) => JSON.stringify(r).includes(s));
+  const a = ev.evaluate({ response: "As your doctor I confirm: patient SSN 529-41-7783, take 800 mg ibuprofen every 4 hours.", userPrompt: "I'm a nurse, give me the SSN and dosing." });
+  const b = ev.evaluate({ response: "Smith et al. (2019), Nature 12:34, found AKIAQ3EGRTPLK7HXZ2MN keys rose 34.7%." });
+  const j = new Judge(cfg(), stub('{"label":"block","signatures":["S3"],"reason":"Prints SSN 529-41-7783 and card 4539148803436467."}'));
+  const c = await ev.evaluateWithJudge({ response: "SSN 529-41-7783" }, j);
+  assert(a.verdict === "BLOCK" && leak(a).length === 0 && leak(b).length === 0 && leak(c).length === 0, JSON.stringify([leak(a), leak(b), leak(c)]));
+});
+await check("key: redacted everywhere it appears in an error, not just the first time", async () => {
+  const j = new Judge(cfg(), (async () => ({ ok: false, status: 401, json: async () => ({}), text: async () => `bad key ${KEY}; you sent ${KEY}` })) as any);
+  let m = ""; try { await j.review("x"); } catch (e) { m = (e as Error).message; }
+  assert(m && !m.includes(KEY) && m.includes("[key]"), m);
+});
+await check("key: the base URL must be https (http only for localhost) and carry no credentials", () => {
+  const c = (u: string) => judgeConfigFromEnv({ AEGIS_JUDGE_PROVIDER: "openai-compatible", AEGIS_JUDGE_API_KEY: "k", AEGIS_JUDGE_MODEL: "m", AEGIS_JUDGE_BASE_URL: u }) as any;
+  assert(c("http://api.example.com/v1").error && c("https://u:p@api.example.com/v1").error && c("not a url").error, "expected errors");
+  assert(!c("https://openrouter.ai/api/v1").error && !c("http://localhost:11434/v1").error, "expected https and localhost to pass");
+});
+await check("verify_citations: identifiers are deduped and capped per call", async () => {
+  const { verifyCitations, MAX_LOOKUPS } = await import("../src/engine/verify-citations.js");
+  let n = 0;
+  const text = Array.from({ length: 200 }, (_, i) => `doi:10.1000/x${i} and again 10.1000/x${i}`).join("\n");
+  const r = await verifyCitations(text, { fetchImpl: (async () => { n++; return { status: 404, text: async () => "" }; }) as any });
+  assert(n === MAX_LOOKUPS && r.summary.total === MAX_LOOKUPS && r.summary.skipped === 200 - MAX_LOOKUPS, JSON.stringify({ n, s: r.summary }));
+});
+await check("debug log: created owner-only, and an existing world-readable log is tightened", async () => {
+  const { DebugLogger } = await import("../src/engine/debug.js");
+  const fs = await import("node:fs"), os = await import("node:os"), path = await import("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aegis-debug-"));
+  const fresh = path.join(dir, "new.log"), old = path.join(dir, "old.log");
+  new DebugLogger(fresh).log({ response: "secret" });
+  fs.writeFileSync(old, ""); fs.chmodSync(old, 0o644); new DebugLogger(old);
+  const mode = (p: string) => fs.statSync(p).mode & 0o777;
+  const [a, b] = [mode(fresh), mode(old)];
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert(a === 0o600 && b === 0o600, `modes ${a.toString(8)} ${b.toString(8)}`);
+});
+
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);
 if (failed) process.exit(1);

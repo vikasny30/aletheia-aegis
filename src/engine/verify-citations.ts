@@ -34,7 +34,7 @@ export interface CitationResult {
 
 export interface VerifyResult {
   citations: CitationResult[];
-  summary: { total: number; verified: number; notFound: number; unverifiable: number; unsupported: number };
+  summary: { total: number; verified: number; notFound: number; unverifiable: number; unsupported: number; /** identifiers past the per-call cap, not checked */ skipped?: number };
 }
 
 const DOI_RE = /10\.\d{4,9}\/[^\s"'<>]+/g;
@@ -120,13 +120,21 @@ async function verifyOne(
   }
 }
 
+/** Most identifiers checked per call. */
+export const MAX_LOOKUPS = 25;
+
 export async function verifyCitations(
   text: string,
   options: { fetchImpl?: FetchImpl; timeoutMs?: number } = {},
 ): Promise<VerifyResult> {
   const fetchImpl = options.fetchImpl ?? (globalThis.fetch as unknown as FetchImpl);
   const timeoutMs = options.timeoutMs ?? 5000;
-  const citations = extractCitations(text);
+  // Each identifier is one outbound request, made one after another: dedupe
+  // and cap them, so a pasted bibliography (or a hostile text) can't turn one
+  // call into thousands of requests or a call that runs for hours.
+  const seen = new Set<string>();
+  const all = extractCitations(text).filter((c) => !seen.has(`${c.type}:${c.value.toLowerCase()}`) && seen.add(`${c.type}:${c.value.toLowerCase()}`));
+  const citations = all.slice(0, MAX_LOOKUPS);
   const results: CitationResult[] = [];
   for (const citation of citations) {
     results.push(await verifyOne(citation, fetchImpl, timeoutMs));
@@ -139,6 +147,7 @@ export async function verifyCitations(
       notFound: results.filter((r) => r.status === "not_found").length,
       unverifiable: results.filter((r) => r.status === "unverifiable").length,
       unsupported: results.filter((r) => r.status === "unsupported").length,
+      ...(all.length > citations.length ? { skipped: all.length - citations.length } : {}),
     },
   };
 }
