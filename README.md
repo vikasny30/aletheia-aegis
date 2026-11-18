@@ -129,7 +129,46 @@ Measured November 11, 2026 on this repository's own test suite (`npm test`, `npm
 | Crisis-resource locale | `locale` param (`US`, `GB`, `IE`, `CA`, `AU`, `NZ`, `IN`), or `AEGIS_LOCALE` env var | US; unknown locales get US resources plus the international directory (findahelpline.com) |
 | Debug log | `AEGIS_DEBUG_LOG` env var (local file path) | Off. When set, each evaluation appends one JSON line including the full response text — local file only, never exposed as an MCP resource. Keep the file local; it may contain secrets and sensitive content. |
 
-The guard itself stays offline and synchronous. Only `aegis_verify_citations` makes network requests, and only when explicitly called.
+By default the guard is offline and synchronous: no network requests, sub-millisecond. The two options below make network requests and are off unless you turn them on.
+
+### Model judge (optional, your own API key)
+
+Pattern matching catches failures with a fixed shape (leaked SSNs, card numbers and keys; known citation formats; known crisis phrases), but on output it has never seen it misses many open-ended ones: fabricated citations that look real, reworded crisis messages, idioms, identity claims. The model judge sends the prompt and reply to a model you choose, with a written rubric, and combines its verdict with the patterns.
+
+| Setting | Values |
+|---|---|
+| `AEGIS_JUDGE_PROVIDER` | `anthropic`, `openai`, `google`, or `openai-compatible` (OpenRouter, a Hugging Face router, a local server) |
+| `AEGIS_JUDGE_API_KEY` | Your key. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY` also work for the matching provider |
+| `AEGIS_JUDGE_MODEL` | Optional. Defaults: `claude-haiku-5-5`, `gpt-5.4-mini`, `gemini-3.5-flash`. Required for `openai-compatible` |
+| `AEGIS_JUDGE_BASE_URL` | Required for `openai-compatible`, e.g. `https://openrouter.ai/api/v1` |
+| `AEGIS_JUDGE_POLICY` | `balanced` (default): the judge decides, but leaked SSNs, card numbers and secrets always block. `strict`: flag when either the patterns or the judge flags (more catches, about twice the false alarms) |
+| `AEGIS_JUDGE_TIMEOUT_MS` | Default `20000`. On timeout or any error the pattern verdict is returned, with `mode: "patterns (judge unavailable)"` |
+
+Every result says what ran: `mode` is `patterns`, `patterns+judge`, or `patterns (judge unavailable)`, and `judge` holds the judge's label, signatures and one-line reason. Pattern findings the judge overruled are kept in `overruledFindings`. A single call can skip the judge with `judge: false`; the CLI has `--no-judge`. Your key is sent only to your provider's endpoint and never appears in results, errors or logs. A check with the judge takes about 1–4 seconds and costs a fraction of a cent with the default small models; identical prompt and reply pairs are cached in memory.
+
+In simulations on the held-out set, using an independent model's labels as the judge, the balanced policy caught about 81% of failures (patterns alone: 43%) with no increase in false alarms. Those are estimates; the measured number on a fresh batch is reported under Measured results once it exists.
+
+### Reference check (optional, no key)
+
+`AEGIS_VERIFY_CITATIONS=crossref` looks up the references in any reply flagged under S1 in Crossref, the public registry of scholarly works. If every reference is found with a matching first author, year and title (or journal), the S1 flag is lifted, which removes the most common false alarm: correct citation lists. A reference that isn't found is listed as evidence but never adds a flag by itself, since some real work isn't in Crossref. It sends reference text to Crossref, so it is off by default. It can't detect a real paper credited to the wrong journal or with invented co-authors, and it doesn't check court cases.
+
+Example, Claude Desktop with both on:
+
+```json
+{
+  "mcpServers": {
+    "aletheia-aegis": {
+      "command": "node",
+      "args": ["/absolute/path/to/aletheia-aegis/dist/index.js"],
+      "env": {
+        "AEGIS_JUDGE_PROVIDER": "anthropic",
+        "AEGIS_JUDGE_API_KEY": "your-key-here",
+        "AEGIS_VERIFY_CITATIONS": "crossref"
+      }
+    }
+  }
+}
+```
 
 ## Corpus mode
 
