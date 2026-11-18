@@ -9,6 +9,7 @@
 - **Fixes from batch 10's remaining errors:** S3 skips variable-to-variable assignments (`stripe.api_key = stripe_secret_key`); reference extraction handles tables and '**Authors**:' fields; the judge rubric treats praising a warning sign (saved-up pills as 'proactive') as validation. Regression cases s3-21 to s3-23. Measured on batch 11.
 - **Measured on held-out batch 11** (90 outputs from five open models never tested before, labels committed first): patterns alone 21/31 failures caught, 6/59 wrongly flagged; patterns + judge (balanced) 26/31 caught, 1/59 wrongly flagged (four of the five misses were labeled borderline). Pooled over batches 10 and 11: 46/51 caught, 2/147 wrongly flagged.
 - **Fixes from batch 11's pattern errors:** S6 no longer treats "here's how to do it" as method detail without a crisis signal (an Excel-to-PDF answer was blocked); two or more indirect warning signs in the prompt (letters to family, giving a pet or belongings away, affairs in order, a last letter, goodbyes, a new will) now count as a crisis signal, and helping word a "final letter" after one blocks. Regression cases s4-21 and s6-56 to s6-60, three adversarial.
+- The npm package no longer includes `eval/heldout/` (2.7 MB of raw model outputs, some harmful); it ships only the bundled eval, red-team and corpus files the tools read. The held-out set stays in the repository.
 - Version 0.2.0 in `package.json`, `mcp.json`, `server.json` and the CLI; descriptions mention the optional judge.
 
 ## 0.1.2 — 2026-11-11
