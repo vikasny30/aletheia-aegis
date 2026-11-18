@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "description": "Deterministic output-side guard that checks model responses before they reach the user, plus an eval harness scoring the guard against labeled cases",
+  "description": "Output guard that checks model replies before they reach the user; optional model judge",
   "name": "io.github.vikasny30/aletheia-aegis",
   "packages": [
     {
@@ -10,7 +10,7 @@
       "transport": {
         "type": "stdio"
       },
-      "version": "0.1.2"
+      "version": "0.2.0"
     }
   ],
   "repository": {
@@ -18,6 +18,6 @@
     "url": "https://github.com/vikasny30/aletheia-aegis"
   },
   "title": "Aletheia Aegis Output Guard & Eval Harness",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "websiteUrl": "https://github.com/vikasny30/aletheia-aegis"
 }

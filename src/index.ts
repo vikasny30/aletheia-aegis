@@ -33,7 +33,7 @@ import {
   runGuardEval,
 } from "./engine/eval.js";
 
-const VERSION = "0.1.2";
+const VERSION = "0.2.0";
 
 const HELP = `
 Aletheia Aegis v${VERSION}

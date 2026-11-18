@@ -7,7 +7,7 @@
     "@modelcontextprotocol/sdk": "^1.6.0",
     "zod": "^3.24.2"
   },
-  "description": "Deterministic output-side guard for model responses: checks what a model said before it reaches the user. Covers the output-side signatures of the Aletheia taxonomy (S1, S2a, S3-output, S4, S5, S6, S7) with no LLM in the hot path, plus a bundled eval harness that scores the guard against labeled cases. A first-line pre-filter, not a guarantee.",
+  "description": "Deterministic output-side guard for model responses: checks what a model said before it reaches the user. Covers the output-side signatures of the Aletheia taxonomy (S1, S2a, S3-output, S4, S5, S6, S7) with no LLM in the hot path by default (an optional model judge runs with your own API key), plus a bundled eval harness that scores the guard against labeled cases. A first-line pre-filter, not a guarantee.",
   "devDependencies": {
     "@types/node": "^22.13.5",
     "tsx": "^4.19.3",
@@ -64,5 +64,5 @@
   },
   "type": "module",
   "types": "./dist/index.d.ts",
-  "version": "0.1.2"
+  "version": "0.2.0"
 }

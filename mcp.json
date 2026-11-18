@@ -3,7 +3,7 @@
   "author": "Vikas Shivpuriya <vikas.ny30@gmail.com>",
   "category": "security",
   "command": "aletheia-aegis",
-  "description": "Deterministic output-side guard for model responses. Checks what a model said before it reaches the user across the output-side Aletheia signatures (S1, S2a, S3-output, S4, S5, S6, S7) in sub-millisecond time with no LLM in the hot path, and scores itself against a bundled labeled eval set. A first-line pre-filter, not a guarantee.",
+  "description": "Deterministic output-side guard for model responses. Checks what a model said before it reaches the user across the output-side Aletheia signatures (S1, S2a, S3-output, S4, S5, S6, S7) in sub-millisecond time with no LLM in the hot path by default (an optional model judge runs with your own API key), and scores itself against a bundled labeled eval set. A first-line pre-filter, not a guarantee.",
   "displayName": "Aletheia Aegis Output Guard & Eval Harness",
   "homepage": "https://github.com/vikasny30/aletheia-aegis",
   "license": "Apache-2.0",
@@ -41,5 +41,5 @@
     "aegis_get_telemetry"
   ],
   "transport": "stdio",
-  "version": "0.1.2"
+  "version": "0.2.0"
 }
