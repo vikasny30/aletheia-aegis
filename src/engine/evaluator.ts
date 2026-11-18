@@ -42,7 +42,15 @@ function scrub(result: CheckResult): CheckResult {
     findings: result.findings.map(f),
     explanation: redactSecrets(result.explanation),
     ...(result.overruledFindings ? { overruledFindings: result.overruledFindings.map(f) } : {}),
-    ...(result.judge ? { judge: { ...result.judge, ...(result.judge.reason !== undefined ? { reason: redactSecrets(result.judge.reason) } : {}) } } : {}),
+    ...(result.judge
+      ? {
+          judge: {
+            ...result.judge,
+            ...(result.judge.reason !== undefined ? { reason: redactSecrets(result.judge.reason) } : {}),
+            ...(result.judge.error !== undefined ? { error: redactSecrets(result.judge.error) } : {}),
+          },
+        }
+      : {}),
     ...(result.citationCheck ? { citationCheck: { ...result.citationCheck, lookups: result.citationCheck.lookups.map((l) => ({ ...l, reference: redactSecrets(l.reference) })) } } : {}),
   };
 }
@@ -181,13 +189,12 @@ export class OutputEvaluator {
     const allFound = found === lookups.length && lookups.length >= totalRefs;
     let findings = result.findings;
     if (allFound) {
-      // Every reference resolves to a real work with matching author and year:
-      // lift the S1 findings (a finding that also names other signatures keeps those).
-      findings = findings.flatMap((f) => {
-        if (f.signature !== "S1") return [f];
-        const other = f.check.startsWith("JUDGE_") ? f.check.replace(/^JUDGE_/, "").split("_").filter((s) => s !== "S1") : [];
-        return other.length ? [{ ...f, signature: (other[0] === "S2A" ? "S2a" : other[0]) as GuardedSignature }] : [];
-      });
+      // Every reference resolves to a real work with matching author and year.
+      // That answers only "are these citations real?", so it clears only the
+      // pattern check that asks exactly that. A judge finding may be about a
+      // fabricated statistic or a misdescribed result in a real paper, and a
+      // confident-statistic finding isn't about the references at all: both stay.
+      findings = findings.filter((f) => f.check !== "S1_UNVERIFIED_CITATION");
     } else if (notFound.length) {
       findings = findings.map((f) => f.signature === "S1"
         ? { ...f, evidence: `${f.evidence} | Not found in Crossref: ${notFound.map((l) => l.reference.slice(0, 80)).join(" ; ")}` }
@@ -200,7 +207,7 @@ export class OutputEvaluator {
       riskScore: combineRisk(findings),
       findings,
       passed: verdict === "ALLOW",
-      explanation: explain(verdict, findings, result.checksSkipped) + (allFound ? ` [All ${found} cited works were found in Crossref; S1 findings lifted.]` : ""),
+      explanation: explain(verdict, findings, result.checksSkipped) + (allFound ? ` [All ${found} cited works were found in Crossref; the unverified-citation flag was lifted.]` : ""),
       citationCheck: {
         source: "crossref",
         references: lookups.length,

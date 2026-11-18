@@ -34,6 +34,11 @@
   - **No home-directory paths in scorecards.** Eval scorecards name files relative to the package or working directory.
   - **Docs:** `aegis_check_output` was described as never using the network, and the one-line summary said "no LLM"; both now mention the opt-in judge and reference check.
   - Fuzzed 20,000 mutated inputs (no crash, no raw secret in any output, verdict/finding invariants hold, none over 50 ms); MCP end-to-end over stdio on Node 18 and current Node; secret masking precompiled to keep p50 latency near 0.02 ms.
+- **Independent review (Semgrep, gitleaks, and a cross-family model review by Gemini 3.5 Flash):** Semgrep (117 security rules) found nothing; gitleaks over all 45 commits found only test fixtures and documentation example keys, and none of the maintainer's real keys appear anywhere in history. Of five model-review findings, one was not reproducible (regex `lastIndex` state: `matchAll` copies the regex) and four were confirmed and fixed:
+  - **Judge cache collision.** The cache key joined prompt and reply with a NUL separator, so moving text across it (prompt `a\0b` + reply `c` vs prompt `a` + reply `b\0c`) reused another request's cached ALLOW. The key now JSON-encodes the fields.
+  - **Crossref lift cleared judge findings.** With all references found, the lift removed every S1 finding, including a judge finding about a fabricated statistic next to one real reference. It now clears only `S1_UNVERIFIED_CITATION`.
+  - **Judge answers with braces were dropped.** A reason quoting code (`function f() { ... }`) failed to parse, so the judge was discarded and patterns used. The parser now tracks braces outside strings.
+  - **`judge.error` was not masked.** A secret echoed in a provider error came back to the caller; it is now masked like every other returned field.
 - Version 0.2.0 in `package.json`, `mcp.json`, `server.json` and the CLI; descriptions mention the optional judge.
 
 ## 0.1.2 — 2026-11-11

@@ -138,12 +138,36 @@ export function looksLikeJudgeInjection(...texts: (string | undefined)[]): boole
   return texts.some((t) => t !== undefined && JUDGE_INJECTION_RE.test(t));
 }
 
+/** JSON objects in a text, found by tracking braces outside strings, so a
+ *  reason that quotes code ("function f() { ... }") still parses. */
+function jsonObjects(text: string): string[] {
+  const out: string[] = [];
+  for (let start = text.indexOf("{"); start !== -1 && out.length < 20; start = text.indexOf("{", start + 1)) {
+    let depth = 0, inString = false, escaped = false;
+    for (let i = start; i < text.length && i < start + 20_000; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') inString = true;
+      else if (ch === "{") depth++;
+      else if (ch === "}" && --depth === 0) { out.push(text.slice(start, i + 1)); break; }
+    }
+  }
+  return out;
+}
+
 /** Parse the judge's answer. Tolerates prose or code fences around the JSON. */
 export function parseJudgeAnswer(text: string): { label: JudgeLabel; signatures: GuardedSignature[]; reason: string } | null {
-  const m = text.match(/\{[^{}]*"label"[^{}]*\}/s);
-  if (!m) return null;
-  try {
-    const j = JSON.parse(m[0]);
+  for (const candidate of jsonObjects(text)) {
+    let j: any;
+    try {
+      j = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    if (!j || typeof j !== "object" || !("label" in j)) continue;
     const label = String(j.label ?? "").toLowerCase();
     if (label !== "allow" && label !== "flag" && label !== "block") return null;
     const signatures = (Array.isArray(j.signatures) ? j.signatures : [])
@@ -151,9 +175,8 @@ export function parseJudgeAnswer(text: string): { label: JudgeLabel; signatures:
       .map((s: string) => (s.toLowerCase() === "s2a" ? "S2a" : s.toUpperCase()))
       .filter((s: string): s is GuardedSignature => (SIGNATURES as string[]).includes(s));
     return { label, signatures, reason: String(j.reason ?? "").slice(0, 400) };
-  } catch {
-    return null;
   }
+  return null;
 }
 
 async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike, signal: AbortSignal): Promise<string> {
@@ -203,7 +226,10 @@ export class Judge {
 
   async review(response: string, userPrompt?: string): Promise<JudgeVerdict> {
     const started = Date.now();
-    const key = createHash("sha256").update(`${this.config.provider}\0${this.config.model}\0${userPrompt ?? ""}\0${response}`).digest("hex");
+    // JSON encoding keeps the fields apart: with a plain separator, text moved
+    // across it (prompt "a\0b" + reply "c" vs prompt "a" + reply "b\0c")
+    // collided, so a cached ALLOW could answer a different request.
+    const key = createHash("sha256").update(JSON.stringify([this.config.provider, this.config.model, userPrompt ?? null, response])).digest("hex");
     const hit = this.cache.get(key);
     if (hit) return { ...hit, cached: true, latencyMs: 0 };
     const ctrl = new AbortController();
@@ -220,7 +246,7 @@ export class Judge {
       return { ...verdict, cached: false, latencyMs: Date.now() - started };
     } catch (e) {
       const raw = (e as Error).name === "AbortError" ? `timed out after ${this.config.timeoutMs} ms` : (e as Error).message;
-      const msg = this.config.apiKey ? raw.split(this.config.apiKey).join("[key]") : raw;
+      const msg = this.config.apiKey.length >= 8 ? raw.split(this.config.apiKey).join("[key]") : raw;
       // A judge that always fails would otherwise fall back to patterns in
       // silence. Tell the operator once per distinct error (on stderr, which
       // MCP clients keep as the server log).
