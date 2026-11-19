@@ -279,14 +279,14 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (45 checks)
-npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (92 checks)
+npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (97 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)
 npm run test:leak    # content-leak test: fake SSN, key and email must not appear in telemetry, metrics history or stderr (spawns dist/index.js)
 npm run test:parity  # Python/TypeScript classifier parity test
 npm run eval         # guard + corpus scorecards
-npm run eval:redteam # adversarial paraphrase pass (18 cases)
+npm run eval:redteam # adversarial paraphrase pass (22 cases)
 npm run eval:heldout # held-out set (Appendix A prompts; see eval/heldout/README.md)
 npm run eval:heldout:judge # held-out batches 10–11 through patterns + judge, replaying the committed Gemini 3.5 Flash verdicts (no API calls; --live for a dry run of fetching missing ones)
 npm run benchmark    # 10,000-evaluation latency benchmark

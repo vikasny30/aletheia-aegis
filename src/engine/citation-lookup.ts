@@ -80,17 +80,29 @@ export function matches(reference: string, item: any): boolean {
   if (overlap(String(item?.title?.[0] ?? "")) >= 0.5) return true;
   if (!(year && refYear) || overlap(container) < 0.75) return false;
   const containerTokens = tokens(container);
-  return [...tokens(claimedTitle(reference))].filter((t) => !containerTokens.has(t)).length < 2;
+  const claimed = claimedTitle(reference);
+  if (claimed !== null) return [...tokens(claimed)].filter((t) => !containerTokens.has(t)).length < 2;
+  // No title could be parsed, and the entry isn't a labeled one without a
+  // Title field: the fallback holds only if nothing title-like is left once
+  // the authors, journal and numbers are set aside.
+  const authorTokens = new Set((item?.author ?? []).flatMap((a: any) => [...tokens(`${a?.family ?? ""} ${a?.given ?? ""}`)]));
+  const leftover = [...refTokens].filter((t) => !containerTokens.has(t) && !authorTokens.has(t) && !/^\d+$/.test(t));
+  return leftover.length < 2;
 }
 
-/** The title a reference claims, if it states one: a "Title:" field, or the
- *  sentence after "(2022)." in author-year style. Labeled entries without a
- *  Title field claim none. */
-function claimedTitle(reference: string): string {
+/** The title a reference claims: a "Title:" field, the sentence after
+ *  "(2022)." (author-year), or the sentence after the author list
+ *  ("Vaswani S, Lee K. Title. Journal. 2022." Vancouver). "" for a labeled
+ *  entry without a Title field (it claims none); null when no title can be
+ *  parsed, which the caller must not read as "no title". */
+function claimedTitle(reference: string): string | null {
   const labeled = reference.match(/\bTitle\s*:\s*(.*?)(?=\b(?:Authors?|Journal|Year|Publication\s+Year|Summary|Key\s+Finding|Findings?)\s*:|$)/i);
   if (labeled) return labeled[1];
   if (/\b(?:Authors?|Journal)\s*:/i.test(reference)) return "";
-  return reference.match(/\(\s*(?:19|20)\d{2}[a-z]?\s*\)\s*[.,:]?\s*([^.?!]{10,300}[.?!])/)?.[1] ?? "";
+  const apa = reference.match(/\(\s*(?:19|20)\d{2}[a-z]?\s*\)\s*[.,:]?\s*([^.?!]{10,300}[.?!])/);
+  if (apa) return apa[1];
+  const vancouver = reference.match(/^\s*(?:\d{1,3}[.)]\s*)?(?:[A-Z][A-Za-z'-]+\s+[A-Z]{1,3}(?:,\s*|\s+and\s+|\s*&\s*))*[A-Z][A-Za-z'-]+\s+[A-Z]{1,3}(?:,?\s+et\s+al)?\.\s+([^.?!]{10,300}[.?!])/);
+  return vancouver ? vancouver[1] : null;
 }
 
 /** The searchable part of an entry: drop a heading before "Authors:", field
