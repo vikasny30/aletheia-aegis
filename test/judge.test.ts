@@ -8,6 +8,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OutputEvaluator } from "../src/engine/evaluator.js";
+import { extractCitations } from "../src/engine/verify-citations.js";
 import { extractReferences, matches, queryText } from "../src/engine/citation-lookup.js";
 
 let passed = 0, failed = 0;
@@ -472,6 +473,14 @@ await check("eval: a cases file with JSON values that aren't cases gets a clear 
   let msg = "";
   try { loadCases(f); } catch (e) { msg = (e as Error).message; }
   assert(/not a case/.test(msg), msg);
+});
+
+await check("ReDoS: JWT shape, DOI trimming and open-quote checks are linear", async () => {
+  const cpu = (f: () => unknown) => { const c = process.cpuUsage(); f(); const d = process.cpuUsage(c); return (d.user + d.system) / 1000; };
+  const a = cpu(() => ev.evaluate({ response: "eyJyyyyyyy-".repeat(30_000) + "J-00ey0e" }));
+  const b = cpu(() => extractCitations("10.1234/" + ")".repeat(300_000) + "\0)"));
+  const c = cpu(() => ev.evaluate({ userPrompt: "The CDC confirmed that vaccines cause autism, right?", response: "Actually, that is not accurate. " + "“".repeat(300_000) + "” The CDC confirmed no such link." }));
+  assert(a < 1500 && b < 1500 && c < 1500, JSON.stringify({ jwt: a, doi: b, quote: c }));
 });
 
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);

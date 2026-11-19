@@ -44,7 +44,11 @@ const CASE_CITE_RE = /\b[A-Z][A-Za-z]+ v\. [A-Z][A-Za-z]+,?\s+\d{1,4}\s+(U\.S\.|
 const ET_AL_RE = /\bet al\.\s*\(\d{4}\)/g;
 
 function cleanDoi(raw: string): string {
-  return raw.replace(/[).,;:]+$/, "");
+  // A loop, not /[).,;:]+$/: that regex is quadratic on a long run of ")"
+  // that doesn't reach the end (seconds at 80,000 characters).
+  let end = raw.length;
+  while (end > 0 && ").,;:".includes(raw[end - 1])) end--;
+  return raw.slice(0, end);
 }
 
 export function extractCitations(text: string): Array<{ type: CitationType; value: string }> {

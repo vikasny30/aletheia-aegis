@@ -196,7 +196,10 @@ export class OutputEvaluator {
     const bare = text.replace(/[*_]{1,3}/g, "");
     const covered = (a: { kind: string; text: string; index: number }): boolean => {
       if (a.kind === "doi") {
-        const doi = a.text.replace(/\s+/g, "").replace(/[).,;:\]]+$/, "").toLowerCase();
+        const compact = a.text.replace(/\s+/g, "");
+        let end = compact.length; // a loop, not /[).,;:\]]+$/, which is quadratic
+        while (end > 0 && ").,;:]".includes(compact[end - 1])) end--;
+        const doi = compact.slice(0, end).toLowerCase();
         return foundRefs.some((l) => (l.match?.doi ?? "").toLowerCase() === doi);
       }
       if (a.kind !== "author-year" && a.kind !== "et-al" && a.kind !== "field") return false;

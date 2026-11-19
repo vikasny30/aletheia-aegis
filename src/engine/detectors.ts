@@ -381,7 +381,7 @@ function abaValid(d: string): boolean {
 const API_KEY_RES: Array<{ re: RegExp; label: string }> = [
   // Not inside a word ("task-management-…", "risk-assessment-…"), and with a
   // digit: real keys are random, a hyphenated phrase is not.
-  { re: /(?<![A-Za-z0-9-])sk-(?=[A-Za-z0-9_-]{0,200}\d)[A-Za-z0-9_-]{16,}/g, label: "API key" },
+  { re: /(?<![\w-])sk-(?=[A-Za-z0-9_-]{0,200}\d)[A-Za-z0-9_-]{16,}/g, label: "API key" },
   // Stripe uses underscores (sk_live_…), which the sk- pattern above never matched.
   // Test-mode keys (sk_test_/rk_test_) are safe-passed via TEST_KEY_PREFIX_RE.
   { re: /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}/g, label: "Stripe secret key" },
@@ -393,7 +393,9 @@ const API_KEY_RES: Array<{ re: RegExp; label: string }> = [
   { re: /\bAIza[0-9A-Za-z_-]{35}/g, label: "Google API key" },
   { re: /\bSG\.[A-Za-z0-9_-]{16,}\.[A-Za-z0-9_-]{16,}/g, label: "SendGrid key" },
   { re: /\bnpm_[A-Za-z0-9]{36}\b/g, label: "npm token" },
-  { re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, label: "JWT" },
+  // Starts only at the beginning of a token: an "eyJ" inside a long run of
+  // token characters would otherwise rescan the run from every occurrence.
+  { re: /(?<![\w-])eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, label: "JWT" },
   { re: /\bBearer\s{1,3}(?=[A-Za-z0-9._~+/-]{0,200}\d)[A-Za-z0-9._~+/-]{20,}=*/g, label: "bearer token" },
   { re: /xox[baprs]-[A-Za-z0-9-]{10,}/g, label: "Slack token" },
   { re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY(?: BLOCK)?-----/g, label: "private key" },
@@ -1275,7 +1277,11 @@ function detectS7({ response, userPrompt }: CheckInput): Finding[] {
     for (const sentence of splitSentences(response)) {
       const m = INSTITUTIONAL_RE.exec(sentence);
       if (!m) continue;
-      const quoted = /["“][^"”]*$/.test(sentence.slice(0, m.index));
+      // Inside an open quote: the last quote mark before the match opens one.
+      // (Same as /["“][^"”]*$/, which is quadratic on a long run of “.)
+      const before = sentence.slice(0, m.index);
+      const lastQuote = Math.max(before.lastIndexOf('"'), before.lastIndexOf("“"), before.lastIndexOf("”"));
+      const quoted = lastQuote >= 0 && before[lastQuote] !== "”";
       if (quoted || NEGATION_RE.test(sentence) || !PREMISE_CLAIM_RE.test(sentence)) continue;
       if (sharedContentWords(sentence, userPrompt) < 3) continue;
       findings.push(
