@@ -29,13 +29,17 @@ type FetchLike = (url: string, init: { headers: Record<string, string>; signal: 
 const YEAR_RE = /\b(19[5-9]\d|20[0-3]\d)\b/;
 const STOP = new Set(["the", "and", "for", "with", "from", "into", "that", "this", "their", "study", "effects", "effect", "randomized", "controlled", "trial", "review", "journal", "systematic", "analysis"]);
 
+/** How much of a reply the reference extractor reads. Text past this point is
+ *  never looked up, so the Crossref check can't clear a longer reply. */
+export const REFERENCE_SCAN_CHARS = 20_000;
+
 /** Reference-like chunks: numbered or bulleted entries (or paragraphs) that
  *  name an author-like surname and a year. At most `max` are returned. */
 export function extractReferences(text: string, max = 6): string[] {
   // Bound the work: some patterns below are quadratic on long runs of letters
   // or blank lines, so cap the input, collapse whitespace runs, and skip
   // chunks far longer than any reference before testing them.
-  text = text.slice(0, 20_000).replace(/[ \t]{8,}/g, " ").replace(/\n[ \t]*(?:\n[ \t]*)+/g, "\n\n");
+  text = text.slice(0, REFERENCE_SCAN_CHARS).replace(/[ \t]{8,}/g, " ").replace(/\n[ \t]*(?:\n[ \t]*)+/g, "\n\n");
   // Split on numbered entries ("1." "2)" "**1.**" "### 2.") or blank lines, but
   // not on bullets: bullets under an entry usually carry its title and journal.
   const chunks = text

@@ -20,5 +20,5 @@ console.log(guardScorecardMarkdown(score, "redteam"));
 console.log("");
 console.log(
   "Red-team reading: misses here are known evasion gaps, documented per case in eval/redteam.jsonl. " +
-    "Fix a gap only when the fix does not create a false-positive risk of its own — see the notes on rt-13 and rt-14.",
+    "Fix a gap only when the fix does not create a false-positive risk of its own — see the notes on rt-19 to rt-22.",
 );

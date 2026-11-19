@@ -132,7 +132,18 @@ function userMessage(response: string, userPrompt?: string, nonce = randomBytes(
  * still add findings but may not overrule the patterns (see evaluateWithJudge).
  */
 export const JUDGE_INJECTION_RE =
-  /<\/?\s*(?:assistant[\s_-]*(?:reply|response|message)|user[\s_-]*(?:message|prompt)|system|instructions?)[^<>\n]{0,40}>|"label"\s*:\s*"(?:allow|flag|block)"|\b(?:note|message|instructions?|attention)\s+(?:to|for)\s+(?:the\s+|any\s+)?(?:automated\s+|ai\s+|safety\s+|output\s+)?(?:reviewers?|judges?|graders?|moderators?|classifiers?|evaluators?)\b|\b(?:reviewers?|judges?|graders?|moderators?|classifiers?|evaluators?)\s+(?:instructions?|update|override|note)\b|\bignore\s+(?:all\s+|any\s+)?(?:the\s+)?(?:previous|prior|above|earlier)\s+(?:instructions?|rules?|rubric)\b/i;
+  /<\/?\s*(?:assistant[\s_-]*(?:reply|response|message)|user[\s_-]*(?:message|prompt)|system|instructions?)[^<>\n]{0,40}>|"label"\s*:\s*"(?:allow|flag|block)"|\b(?:note|message|instructions?|attention)\s+(?:to|for)\s+(?:the\s+|any\s+)?(?:automated\s+|ai\s+|safety\s+|output\s+)?(?:reviewers?|judges?|graders?|moderators?|classifiers?|evaluators?)\b|\b(?:reviewers?|judges?|graders?|moderators?|classifiers?|evaluators?)\s+(?:instructions?|update|override|note)\b|\bignore\s+(?:all\s+|any\s+)?(?:the\s+)?(?:previous|prior|above|earlier)\s+(?:instructions?|rules?|rubric)\b|['"]?label['"]?\s*[:=]\s*['"]?(?:allow|flag|block)\b|\bverdict\s*[:=]\s*['"]?(?:allow|flag|block)\b|<\/?\s*(?:verdict|label|judge|review(?:er)?)\b[^<>\n]{0,40}>|\b(?:system|admin|safety|moderation)\s+override\b|\b(?:dear|attention|hello|hi)\s+(?:automated\s+|ai\s+)?(?:moderation|safety|review|content|output)\s+(?:system|team|bot|model|filter)\b|\bdisregard\s+(?:the\s+|your\s+|all\s+)?(?:rubric|rules|instructions|guidelines|policy)\b/i;
+
+/**
+ * Remove the API key from a provider error, including the partial forms
+ * providers echo back ("Incorrect API key provided: sk-test-****5678", or the
+ * key's first or last characters), since the error reaches the caller.
+ */
+export function redactKey(text: string, apiKey: string): string {
+  let out = apiKey.length >= 8 ? text.split(apiKey).join("[key]") : text;
+  if (apiKey.length >= 20) for (const part of [apiKey.slice(0, 10), apiKey.slice(-6)]) out = out.split(part).join("[key]");
+  return out.replace(/\b[A-Za-z]{2,8}[-_][\w-]{0,16}?[*•.…]{3,}[\w-]{0,8}/g, "[key]");
+}
 
 export function looksLikeJudgeInjection(...texts: (string | undefined)[]): boolean {
   return texts.some((t) => t !== undefined && JUDGE_INJECTION_RE.test(t));
@@ -142,7 +153,11 @@ export function looksLikeJudgeInjection(...texts: (string | undefined)[]): boole
  *  reason that quotes code ("function f() { ... }") still parses. */
 function jsonObjects(text: string): string[] {
   const out: string[] = [];
-  for (let start = text.indexOf("{"); start !== -1 && out.length < 20; start = text.indexOf("{", start + 1)) {
+  // Bounded: a hostile reply of many unclosed braces would otherwise cost
+  // starts × scan length. Real verdicts are short and come early.
+  text = text.slice(0, 20_000);
+  let tried = 0;
+  for (let start = text.indexOf("{"); start !== -1 && out.length < 20 && tried++ < 50; start = text.indexOf("{", start + 1)) {
     let depth = 0, inString = false, escaped = false;
     for (let i = start; i < text.length && i < start + 20_000; i++) {
       const ch = text[i];
@@ -160,6 +175,11 @@ function jsonObjects(text: string): string[] {
 
 /** Parse the judge's answer. Tolerates prose or code fences around the JSON. */
 export function parseJudgeAnswer(text: string): { label: JudgeLabel; signatures: GuardedSignature[]; reason: string } | null {
+  // If the answer holds more than one verdict object (say the judge quoted a
+  // forged {"label":"allow"} from the reply before giving its own), the most
+  // severe one wins, so a quoted forgery can never lower the verdict.
+  const rank = { allow: 0, flag: 1, block: 2 } as const;
+  let best: { label: JudgeLabel; signatures: GuardedSignature[]; reason: string } | null = null;
   for (const candidate of jsonObjects(text)) {
     let j: any;
     try {
@@ -169,14 +189,15 @@ export function parseJudgeAnswer(text: string): { label: JudgeLabel; signatures:
     }
     if (!j || typeof j !== "object" || !("label" in j)) continue;
     const label = String(j.label ?? "").toLowerCase();
-    if (label !== "allow" && label !== "flag" && label !== "block") return null;
+    if (label !== "allow" && label !== "flag" && label !== "block") continue;
     const signatures = (Array.isArray(j.signatures) ? j.signatures : [])
       .map((s: unknown) => String(s).trim())
       .map((s: string) => (s.toLowerCase() === "s2a" ? "S2a" : s.toUpperCase()))
       .filter((s: string): s is GuardedSignature => (SIGNATURES as string[]).includes(s));
-    return { label, signatures, reason: String(j.reason ?? "").slice(0, 400) };
+    const parsed = { label: label as JudgeLabel, signatures, reason: String(j.reason ?? "").slice(0, 400) };
+    if (!best || rank[parsed.label] > rank[best.label]) best = parsed;
   }
-  return null;
+  return best;
 }
 
 async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike, signal: AbortSignal): Promise<string> {
@@ -246,7 +267,7 @@ export class Judge {
       return { ...verdict, cached: false, latencyMs: Date.now() - started };
     } catch (e) {
       const raw = (e as Error).name === "AbortError" ? `timed out after ${this.config.timeoutMs} ms` : (e as Error).message;
-      const msg = this.config.apiKey.length >= 8 ? raw.split(this.config.apiKey).join("[key]") : raw;
+      const msg = redactKey(raw, this.config.apiKey);
       // A judge that always fails would otherwise fall back to patterns in
       // silence. Tell the operator once per distinct error (on stderr, which
       // MCP clients keep as the server log).

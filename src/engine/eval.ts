@@ -124,15 +124,27 @@ export function checkEvalFile(file: string): string {
   return real;
 }
 
+export const MAX_CASES = 10_000;
+
 export function loadCases(filePath?: string): EvalCase[] {
   const file = filePath ?? path.join(evalDir(), "cases.jsonl");
   const lines = fs.readFileSync(file, "utf-8").split("\n").filter((l) => l.trim().length > 0);
+  // The server is single-threaded: a huge cases file would stall every other call.
+  if (lines.length > MAX_CASES) throw new Error(`The cases file has more than ${MAX_CASES.toLocaleString("en-US")} cases; split it into smaller files`);
   return lines.map((line, i) => {
+    let c: unknown;
     try {
-      return JSON.parse(line) as EvalCase;
+      c = JSON.parse(line);
     } catch {
       throw new Error(`Invalid JSON on line ${i + 1} of the cases file`);
     }
+    // A JSON value that isn't a case ([1,2], null, "x") would otherwise fail
+    // later with a raw TypeError.
+    const o = c as Record<string, unknown> | null;
+    if (!o || typeof o !== "object" || Array.isArray(o) || typeof o.response !== "string" || typeof o.id !== "string") {
+      throw new Error(`Line ${i + 1} of the cases file is not a case (needs string "id" and "response")`);
+    }
+    return o as unknown as EvalCase;
   });
 }
 

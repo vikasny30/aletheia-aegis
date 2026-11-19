@@ -7,11 +7,11 @@
  */
 
 import { performance } from "node:perf_hooks";
-import { DETECTORS, redactSecrets } from "./detectors.js";
+import { DETECTORS, citationArtifacts, redactSecrets } from "./detectors.js";
 import { normalizeText } from "./normalize.js";
 import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verdict } from "./types.js";
 import { judgeWouldTruncate, looksLikeJudgeInjection, type Judge } from "./judge.js";
-import { extractReferences, lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
+import { REFERENCE_SCAN_CHARS, extractReferences, lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
 
 /** Pattern checks the judge can never overrule: structured leaks (SSNs, card
  *  numbers, secrets) are exact matches, not judgment calls. */
@@ -185,8 +185,29 @@ export class OutputEvaluator {
     // Lift only when every reference in the reply was checked: lookups are
     // capped, and real references listed first must not clear fabricated
     // ones listed after the cap.
-    const totalRefs = extractReferences(normalizeText(rawInput.response), Number.MAX_SAFE_INTEGER).length;
-    const allFound = found === lookups.length && lookups.length >= totalRefs;
+    const text = normalizeText(rawInput.response);
+    const totalRefs = extractReferences(text, Number.MAX_SAFE_INTEGER).length;
+    // Every citation-shaped specific must belong to a reference Crossref
+    // confirmed. Crossref can't confirm an arXiv id, a PMID or a case citation,
+    // a DOI counts only if it is the confirmed work's DOI, and text past the
+    // extractor's input cap was never looked at.
+    const foundRefs = lookups.filter((l) => l.status === "found");
+    const squash = (s: string) => s.replace(/[*_`#>|]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+    const bare = text.replace(/[*_]{1,3}/g, "");
+    const covered = (a: { kind: string; text: string; index: number }): boolean => {
+      if (a.kind === "doi") {
+        const doi = a.text.replace(/\s+/g, "").replace(/[).,;:\]]+$/, "").toLowerCase();
+        return foundRefs.some((l) => (l.match?.doi ?? "").toLowerCase() === doi);
+      }
+      if (a.kind !== "author-year" && a.kind !== "et-al" && a.kind !== "field") return false;
+      // The artifact with the rest of its line before it, so a bare "et al."
+      // in prose can't borrow a confirmed reference that also says "et al.".
+      const lineStart = bare.lastIndexOf("\n", a.index - 1) + 1;
+      const ctx = squash(bare.slice(Math.max(lineStart, a.index - 60), a.index + a.text.length));
+      return foundRefs.some((l) => squash(l.reference).includes(ctx));
+    };
+    const allCovered = text.length <= REFERENCE_SCAN_CHARS && citationArtifacts(text).every(covered);
+    const allFound = found === lookups.length && lookups.length >= totalRefs && allCovered;
     let findings = result.findings;
     if (allFound) {
       // Every reference resolves to a real work with matching author and year.
@@ -197,7 +218,7 @@ export class OutputEvaluator {
       findings = findings.filter((f) => f.check !== "S1_UNVERIFIED_CITATION");
     } else if (notFound.length) {
       findings = findings.map((f) => f.signature === "S1"
-        ? { ...f, evidence: `${f.evidence} | Not found in Crossref: ${notFound.map((l) => l.reference.slice(0, 80)).join(" ; ")}` }
+        ? { ...f, description: `${f.description} Not found in Crossref: ${notFound.map((l) => l.reference.slice(0, 80)).join(" ; ")}` }
         : f);
     }
     const verdict = verdictFor(findings);
@@ -255,7 +276,9 @@ export class OutputEvaluator {
         severity: jv.label === "block" ? "CRITICAL" : "HIGH",
         action: jv.label === "block" ? "block" : "flag",
         description: `Model judge (${jv.provider}/${jv.model}): ${jv.reason}`,
-        evidence: jv.reason,
+        // Evidence is a short excerpt (120 characters, as for patterns); the
+        // full reason is in the description and in judge.reason.
+        evidence: jv.reason.length > 120 ? `${jv.reason.slice(0, 119)}…` : jv.reason,
         remediation: sigs.map((s) => JUDGE_REMEDIATION[s]).join(" "),
         confidence: 0.8,
       });

@@ -117,8 +117,10 @@ export function resolveCrisisResources(
   localeParam?: string,
   envLocale?: string,
 ): CrisisResources {
-  const raw = (localeParam ?? envLocale ?? "US").trim().toUpperCase();
-  const code = ALIASES[raw] ?? raw;
+  const raw = (localeParam ?? envLocale ?? "US").trim().toUpperCase().replace(/_/g, "-");
+  // A language tag ("en-GB", "en_AU") names its region after the hyphen.
+  const region = /^[A-Z]{2,3}-([A-Z]{2})$/.exec(raw)?.[1];
+  const code = ALIASES[raw] ?? (region && LOCALES[region] ? region : raw);
   const entry = LOCALES[code];
   if (entry) {
     return {
