@@ -22,6 +22,7 @@ import {
 import { OutputEvaluator } from "./engine/evaluator.js";
 import { Judge, judgeConfigFromEnv } from "./engine/judge.js";
 import { Telemetry } from "./engine/telemetry.js";
+import { rollupHistory, rollupMarkdown } from "./engine/rollup.js";
 import { DebugLogger } from "./engine/debug.js";
 import { registerTools } from "./tools/index.js";
 import { registerResources } from "./resources/index.js";
@@ -50,6 +51,9 @@ Usage:
                                               Check with pattern detectors only, even if a judge is configured
   npx aletheia-aegis --eval                   Run the bundled guard eval, print the scorecard
   npx aletheia-aegis --eval-corpus [file]     Classify a JSONL incident file (default: bundled sample)
+  npx aletheia-aegis --rollup [file] [--period day|week] [--since YYYY-MM-DD] [--json]
+                                              Summarize the metrics history (default file: AEGIS_METRICS_LOG)
+                                              per day or ISO week; run it from cron for a daily/weekly report
   npx aletheia-aegis --version, -v            Show version
   npx aletheia-aegis --help, -h               Show this help
 
@@ -58,13 +62,18 @@ Environment:
   AEGIS_BLOCK_CHECKS  Comma-separated check ids to escalate FLAG -> BLOCK
   AEGIS_DEBUG_LOG     Path to a local debug log file (off unless set; contains
                       response text — keep the file local and do not share it)
+  AEGIS_METRICS_LOG   Path to a JSONL metrics history (off unless set; one
+                      content-free line per check: counts, check ids, timings)
+  AEGIS_JUDGE_PRICE_INPUT_PER_MTOK, AEGIS_JUDGE_PRICE_OUTPUT_PER_MTOK
+                      Your judge prices in USD per million tokens, for the cost
+                      estimate in telemetry and --rollup (no estimate if unset)
 
 Model judge (optional; off unless AEGIS_JUDGE_PROVIDER is set; uses your own API key):
   AEGIS_JUDGE_PROVIDER    anthropic | openai | google | openai-compatible
   AEGIS_JUDGE_API_KEY     Your key (or ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY)
   AEGIS_JUDGE_MODEL       Model id (defaults: claude-haiku-5-5, gpt-5.4-mini, gemini-3.5-flash)
   AEGIS_JUDGE_BASE_URL    Required for openai-compatible (e.g. https://openrouter.ai/api/v1)
-  AEGIS_JUDGE_POLICY      balanced (default: judge decides; leaked SSNs/cards/keys always block)
+  AEGIS_JUDGE_POLICY      balanced (default: judge decides on flags; every pattern BLOCK is final)
                           | strict (flag if either the patterns or the judge flags)
   AEGIS_JUDGE_TIMEOUT_MS  Default 20000. On timeout or error the pattern verdict is used.
   AEGIS_JUDGE_ALLOW_OPT_OUT  1 lets callers skip the judge per call (judge: false); off by default
@@ -97,6 +106,33 @@ async function main() {
   if (args.includes("--help") || args.includes("-h")) {
     console.log(HELP);
     process.exit(0);
+  }
+
+  const rollupIdx = args.indexOf("--rollup");
+  if (rollupIdx !== -1) {
+    const next = args[rollupIdx + 1];
+    const file = next && !next.startsWith("--") ? next : process.env.AEGIS_METRICS_LOG;
+    if (!file) {
+      console.error("Usage: aletheia-aegis --rollup <metrics.jsonl> [--period day|week] [--since YYYY-MM-DD] [--json] (or set AEGIS_METRICS_LOG)");
+      process.exit(1);
+    }
+    const periodArg = args[args.indexOf("--period") + 1];
+    const period = args.includes("--period") ? periodArg : "day";
+    if (period !== "day" && period !== "week") {
+      console.error("--period must be day or week");
+      process.exit(1);
+    }
+    const since = args.includes("--since") ? args[args.indexOf("--since") + 1] : undefined;
+    const priceOf = (v?: string) => (v !== undefined && v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null);
+    try {
+      const r = await rollupHistory(file, { period, since, priceInputPerMTok: priceOf(process.env.AEGIS_JUDGE_PRICE_INPUT_PER_MTOK), priceOutputPerMTok: priceOf(process.env.AEGIS_JUDGE_PRICE_OUTPUT_PER_MTOK) });
+      console.log(args.includes("--json") ? JSON.stringify(r, null, 2) : rollupMarkdown(r));
+      process.exit(0);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      console.error(`[Aletheia Aegis] Roll-up failed: ${code === "ENOENT" ? "metrics file not found" : code ?? (e as Error).message}`);
+      process.exit(1);
+    }
   }
 
   const checkIdx = args.indexOf("--check");

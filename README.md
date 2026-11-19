@@ -170,7 +170,7 @@ Example, from five checks with an `openai` judge at example prices (one leaked k
 
 **What these numbers are not.** Runtime telemetry has no labels, so it cannot say whether a block was right. It reports what happened; catch rates and false-positive rates come only from labeled eval runs ([Measured results](#measured-results)), with their sources. There is no "time saved" figure: any such number would rest on an invented multiplier.
 
-**History.** Counters live in memory for the life of the server process (each MCP client starts its own). Set `AEGIS_METRICS_LOG` to a local file path to also append one content-free JSON line per check (verdict, signatures, check ids, mode, judge outcome, tokens, Crossref counts, stage times). Each line is a single append, so several server processes can share one file. Roll it up daily or weekly with any JSONL tool; Aegis runs no scheduler of its own.
+**History.** Counters live in memory for the life of the server process (each MCP client starts its own). Set `AEGIS_METRICS_LOG` to a local file path to also append one content-free JSON line per check (verdict, signatures, check ids, mode, judge outcome, tokens, Crossref counts, stage times). Each line is a single append, so several server processes can share one file. Roll it up per day or per ISO week (UTC) with `npx aletheia-aegis --rollup [file] [--period day|week] [--since YYYY-MM-DD] [--json]` (file defaults to `AEGIS_METRICS_LOG`). It prints replies, verdicts, replies by signature, judge calls / cache hits / hard-block skips / errors, tokens and estimated cost, overrides and Crossref outcomes, and p50/p95 latency for each period. Aegis runs no scheduler of its own; for a daily report, run it from cron, e.g. `0 7 * * * npx aletheia-aegis --rollup /var/log/aegis/metrics.jsonl --period day > /var/log/aegis/rollup.md`. Malformed lines are counted and skipped, and nothing from the file is echoed except known counters and signature ids.
 
 ## Configuration
 
@@ -279,7 +279,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (45 checks)
-npm run test:judge   # model judge, reference check, measurement and security tests, network stubbed (90 checks)
+npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (91 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)

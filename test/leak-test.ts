@@ -114,6 +114,11 @@ try {
   const fileHits = hits(lines);
   expect(fileHits.length === 0, `JSONL history has no leaked values${fileHits.length ? `: ${fileHits.join(", ")}` : ""}`);
   expect(!lines.includes(dir) && !JSON.stringify(tel).includes(dir), "history path is not echoed");
+  const { execFileSync } = await import("node:child_process");
+  const rollup = execFileSync("node", [path.join(ROOT, "dist", "index.js"), "--rollup", history, "--json"]).toString() +
+    execFileSync("node", [path.join(ROOT, "dist", "index.js"), "--rollup", history, "--period", "week"]).toString();
+  const rollHits = hits(rollup);
+  expect(rollup.includes('"replies": 3') && rollHits.length === 0, `--rollup over the history has no leaked values${rollHits.length ? `: ${rollHits.join(", ")}` : ""}`);
   const errHits = hits(stderr);
   expect(errHits.length === 0, `server stderr has no leaked values${errHits.length ? `: ${errHits.join(", ")}` : ""}`);
   const sent = judgeBodies.join("\n");

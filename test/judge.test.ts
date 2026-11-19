@@ -651,5 +651,31 @@ await check("measurement: an unwritable history path never breaks a check", asyn
   assert(h.enabled && h.writeErrors === 1 && !JSON.stringify(t.summary()).includes("nonexistent-dir-aegis"), JSON.stringify(h));
 });
 
+await check("rollup: per day and per ISO week, observed counts, malformed and foreign lines never echoed", async () => {
+  const { rollupHistory, rollupMarkdown } = await import("../src/engine/rollup.js");
+  const file = join(mkdtempSync(join(tmpdir(), "aegis-rollup-")), "h.jsonl");
+  const mon = Date.UTC(2026, 10, 16, 12), tue = Date.UTC(2026, 10, 17, 9), nextMon = Date.UTC(2026, 10, 23, 8);
+  const lines = [
+    { ts: mon, verdict: "BLOCK", signatures: ["S3"], checks: ["S3_SSN"], mode: "patterns (judge skipped: hard block)", judge: "skipped_hard_block", ms: { total: 0.2 } },
+    { ts: mon, verdict: "ALLOW", signatures: [], checks: [], mode: "patterns+judge", judge: "called", judgeLabel: "allow", judgeTokens: { input: 1000, output: 50 }, overruled: { S1: 1 }, cleared: true, ms: { total: 1200.2, judge: 1200 } },
+    { ts: tue, verdict: "FLAG", signatures: ["S5"], checks: ["S5_DOSAGE_WITHOUT_DEFERRAL"], mode: "patterns+judge", judge: "cache_hit", crossref: { references: 2, found: 2, notFound: 0, unverifiable: 0, liftedS1: true }, ms: { total: 0.3, crossref: 800 } },
+    { ts: nextMon, verdict: "FLAG", signatures: ["529-41-7783", "S6"], checks: [], judge: "error", evidence: "SSN 529-41-7783", reason: "leak@example.org", overruled: { "jane@x.org": 3 }, ms: { total: 0.4 } },
+  ];
+  writeFileSync(file, lines.map((l) => JSON.stringify(l)).join("\n") + "\nnot json\n{\"ts\":\"x\"}\n");
+  const day = await rollupHistory(file, { period: "day", priceInputPerMTok: 1, priceOutputPerMTok: 4 });
+  assert(day.linesRead === 6 && day.linesSkipped === 2 && day.buckets.map((b) => b.period).join() === "2026-11-16,2026-11-17,2026-11-23", JSON.stringify(day.buckets.map((b) => b.period)));
+  const d16 = day.buckets[0];
+  assert(d16.replies === 2 && d16.verdicts.block === 1 && d16.judge.skippedHardBlock === 1 && d16.judge.called === 1 && d16.judge.estimatedCostUsd === 0.0012 && d16.overrides.cleared === 1 && d16.overrides.bySignature.S1 === 1, JSON.stringify(d16));
+  assert(day.buckets[1].crossref.s1Lifted === 1 && day.buckets[1].judge.cacheHits === 1, JSON.stringify(day.buckets[1]));
+  const week = await rollupHistory(file, { period: "week", priceInputPerMTok: null, priceOutputPerMTok: null });
+  assert(week.buckets.length === 2 && week.buckets[0].period === "week of 2026-11-16" && week.buckets[0].replies === 3 && week.buckets[0].judge.estimatedCostUsd === null, JSON.stringify(week.buckets.map((b) => [b.period, b.replies])));
+  const since = await rollupHistory(file, { since: "2026-11-20" });
+  assert(since.buckets.length === 1 && since.buckets[0].replies === 1, JSON.stringify(since.buckets));
+  const out = JSON.stringify(day) + rollupMarkdown(day) + rollupMarkdown(week);
+  for (const needle of ["529-41-7783", "leak@example.org", "jane@x.org"]) assert(!out.includes(needle), `echoed ${needle}`);
+  let threw = false; try { await rollupHistory(file, { since: "last week" }); } catch { threw = true; }
+  assert(threw, "bad --since accepted");
+});
+
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);
 if (failed) process.exit(1);
