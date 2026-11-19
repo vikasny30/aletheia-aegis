@@ -75,8 +75,11 @@ export interface CheckResult {
   /** "patterns": pattern detectors only (no judge configured).
    *  "patterns+judge": a model judge reviewed the reply (see `judge`).
    *  "patterns (judge unavailable)": a judge is configured but failed; the
-   *  verdict falls back to the pattern detectors and `judge.error` says why. */
-  mode?: "patterns" | "patterns+judge" | "patterns (judge unavailable)";
+   *  verdict falls back to the pattern detectors and `judge.error` says why.
+   *  "patterns (judge skipped: hard block)": the patterns already BLOCKed, and
+   *  no judge can clear or soften a BLOCK, so the reply was never sent to the
+   *  judge provider: no cost, and no PII or secrets leave the server. */
+  mode?: "patterns" | "patterns+judge" | "patterns (judge unavailable)" | "patterns (judge skipped: hard block)";
   /** The judge's own verdict, when one ran. The API key is never included. */
   judge?: {
     provider: string;
@@ -91,6 +94,8 @@ export interface CheckResult {
      *  could add findings but not overrule the patterns. */
     injectionSuspected?: boolean;
     error?: string;
+    /** Why the judge was not called, when it was configured but skipped. */
+    skipped?: "hard block";
   };
   /** Pattern findings the judge overruled (balanced policy): kept for
    *  transparency, not counted in the verdict. */

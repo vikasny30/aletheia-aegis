@@ -263,6 +263,17 @@ export class OutputEvaluator {
   private async evaluateWithJudgeRaw(rawInput: CheckInput, judge: Judge): Promise<CheckResult> {
     const base = this.evaluate(rawInput);
     const policy = judge.config.policy;
+    // Every BLOCK is hard (HARD_CHECK), so the judge cannot change this
+    // verdict. Calling it would only add cost and send the reply, which may
+    // hold the very PII or secret that blocked it, to a third party.
+    if (base.verdict === "BLOCK") {
+      return {
+        ...base,
+        mode: "patterns (judge skipped: hard block)",
+        judge: { provider: judge.config.provider, model: judge.config.model, policy, skipped: "hard block" },
+        explanation: `${base.explanation} [Judge not called: a pattern BLOCK is final.]`,
+      };
+    }
     let jv;
     try {
       jv = await judge.review(normalizeText(rawInput.response), rawInput.userPrompt === undefined ? undefined : normalizeText(rawInput.userPrompt));
