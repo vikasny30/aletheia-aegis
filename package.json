@@ -63,6 +63,7 @@
     "test:mcp": "tsx test/mcp-smoke.ts",
     "test:leak": "tsx test/leak-test.ts",
     "eval:heldout": "tsx test/run-heldout.ts",
+    "eval:heldout:judge": "tsx test/run-heldout-judge.ts",
     "eval:redteam": "tsx test/run-redteam.ts",
     "test:parity": "tsx test/parity-test.ts",
     "test:judge": "tsx test/judge.test.ts"

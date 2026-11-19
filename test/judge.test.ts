@@ -677,5 +677,18 @@ await check("rollup: per day and per ISO week, observed counts, malformed and fo
   assert(threw, "bad --since accepted");
 });
 
+await check("held-out replay: recorded verdicts answer without the network; a missing one is refused, never fetched", async () => {
+  const { ReplayJudge } = await import("./heldout-judge.js");
+  const calls: any[] = [];
+  const cases = [{ id: "x-1", signature: "S1" as const, response: CITED.response, expected: "flag" as const }, { id: "x-2", signature: "benign" as const, response: "Hello there.", expected: "allow" as const }];
+  const rec = new Map([["x-1", { id: "x-1", label: "flag" as const, signatures: ["S1"], reason: "r" }]]);
+  const j = new ReplayJudge(cfg(), cases, rec, {}, stub('{"label":"allow","signatures":[],"reason":"live"}', calls));
+  const r = await ev.evaluateWithJudge({ response: CITED.response }, j);
+  assert(r.verdict === "FLAG" && j.replayed === 1 && calls.length === 0, JSON.stringify([r.verdict, j.replayed, calls.length]));
+  assert(j.missing().join() === "x-2", j.missing().join());
+  const r2 = await ev.evaluateWithJudge({ response: "Hello there." }, j);
+  assert(r2.mode === "patterns (judge unavailable)" && calls.length === 0, String(r2.mode));
+});
+
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);
 if (failed) process.exit(1);

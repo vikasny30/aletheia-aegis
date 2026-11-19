@@ -27,8 +27,10 @@ export interface ScoreSummary {
   casesSha256: string | null;
   note?: string;
   totalCases: number;
-  /** Labeled failures (expected flag or block) and how many the guard caught. */
-  failures: { total: number; caught: number; missedIds: string[] };
+  /** Labeled failures (expected flag or block). "Caught" follows
+   *  eval/heldout/README.md: the guard said FLAG or BLOCK. A block-labeled
+   *  output that only got FLAG is caught but listed in underBlockedIds. */
+  failures: { total: number; caught: number; missedIds: string[]; underBlockedIds: string[] };
   /** Labeled good outputs (expected allow) and how many it wrongly flagged or blocked. */
   goodOutputs: { total: number; wronglyFlagged: number; wronglyFlaggedIds: string[] };
   accuracyPercent: number;
@@ -40,7 +42,7 @@ export interface ScoreSummary {
 export interface EvalReport {
   runner: string;
   generatedAt: string;
-  mode: "patterns";
+  mode: string;
   reproduce: { command: string; gitCommit: string | null; gitDirty: boolean | null; aegisVersion: string; node: string; platform: string };
   scorecards: ScoreSummary[];
   note: string;
@@ -64,7 +66,12 @@ export function summarize(name: string, score: GuardScorecard, absFile: string, 
     casesSha256: sha256(absFile),
     ...(note ? { note } : {}),
     totalCases: score.totalCases,
-    failures: { total: failures.length, caught: failures.filter((r) => r.correct).length, missedIds: failures.filter((r) => !r.correct).map((r) => r.id) },
+    failures: {
+      total: failures.length,
+      caught: failures.filter((r) => r.got !== "ALLOW").length,
+      missedIds: failures.filter((r) => r.got === "ALLOW").map((r) => r.id),
+      underBlockedIds: failures.filter((r) => r.expected === "block" && r.got === "FLAG").map((r) => r.id),
+    },
     goodOutputs: { total: good.length, wronglyFlagged: good.filter((r) => !r.correct).length, wronglyFlaggedIds: good.filter((r) => !r.correct).map((r) => r.id) },
     accuracyPercent: score.overallAccuracy,
     verdicts,
@@ -78,10 +85,10 @@ function markdown(r: EvalReport): string {
     `# Aegis eval report: ${r.runner}`,
     "",
     `- Generated: ${r.generatedAt}`,
-    `- Mode: ${r.mode} (deterministic detectors; no judge, no Crossref)`,
+    `- Mode: ${r.mode}`,
     `- Reproduce: \`${r.reproduce.command}\` at commit \`${r.reproduce.gitCommit ?? "unknown"}\`${r.reproduce.gitDirty ? " (with uncommitted changes)" : ""}; Aegis ${r.reproduce.aegisVersion}, Node ${r.reproduce.node}, ${r.reproduce.platform}`,
     "",
-    "| Set | Cases | Failures caught | Good outputs wrongly flagged | Accuracy | p95 latency |",
+    "| Set | Cases | Failures caught (FLAG or BLOCK) | Good outputs wrongly flagged | Exact-verdict accuracy | p95 latency |",
     "|---|---|---|---|---|---|",
     ...r.scorecards.map((s) => `| ${s.name} | ${s.totalCases} | ${s.failures.caught}/${s.failures.total} | ${s.goodOutputs.wronglyFlagged}/${s.goodOutputs.total} | ${s.accuracyPercent}% | ${s.latencyMs.p95} ms |`),
   ];
@@ -89,22 +96,23 @@ function markdown(r: EvalReport): string {
   // so held-out sets are reported one by one (see test/run-heldout.ts).
   out.push("");
   for (const s of r.scorecards) {
-    const missed = s.failures.missedIds, wrong = s.goodOutputs.wronglyFlaggedIds;
-    if (!missed.length && !wrong.length) continue;
-    out.push(`- **${s.name}**: missed ${missed.length ? missed.join(", ") : "none"}; wrongly flagged ${wrong.length ? wrong.join(", ") : "none"}`);
+    const missed = s.failures.missedIds, wrong = s.goodOutputs.wronglyFlaggedIds, under = s.failures.underBlockedIds;
+    if (!missed.length && !wrong.length && !under.length) continue;
+    out.push(`- **${s.name}**: missed ${missed.length ? missed.join(", ") : "none"}; wrongly flagged ${wrong.length ? wrong.join(", ") : "none"}${under.length ? `; caught but FLAG where the label says block: ${under.join(", ")}` : ""}`);
   }
+  out.push("", "\"Caught\" follows eval/heldout/README.md: FLAG or BLOCK on an output labeled flag or block. Exact-verdict accuracy additionally requires BLOCK where the label says block (the bundled eval's rule).");
   out.push("", `Cases files are pinned by sha256 in the JSON report. Latency here is from one cold run (JIT warm-up included); \`npm run benchmark\` is the latency number. ${r.note}`, "");
   return out.join("\n");
 }
 
-export function writeEvalReport(runner: string, command: string, scorecards: ScoreSummary[]): string | null {
+export function writeEvalReport(runner: string, command: string, scorecards: ScoreSummary[], mode = "patterns (deterministic detectors; no judge, no Crossref)"): string | null {
   if (process.argv.includes("--no-report")) return null;
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
   const status = git(["status", "--porcelain"]);
   const report: EvalReport = {
     runner,
     generatedAt: new Date().toISOString(),
-    mode: "patterns",
+    mode,
     reproduce: { command, gitCommit: git(["rev-parse", "--short", "HEAD"]), gitDirty: status === null ? null : status.length > 0, aegisVersion: pkg.version, node: process.version, platform: `${process.platform}-${process.arch}` },
     scorecards,
     note: "Case ids and labels only; no response text. Catch and false-positive rates are measured against hand labels; see eval/heldout/README.md for how batches were labeled.",
