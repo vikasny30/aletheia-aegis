@@ -8,6 +8,7 @@ Measurement: every guardrail decision now carries its proof, as counts and timin
 - **`AEGIS_METRICS_LOG`:** optional JSONL history, one content-free line per check, appended in a single write so concurrent server processes can share the file. Off by default.
 - **Judge results carry `tokens`** when the provider reports usage; Crossref results carry `latencyMs`.
 - **`npm run test:leak`:** spawns the built server with history on and a stub judge, sends a fake SSN, API key and email, and requires zero hits in telemetry, the audit log, the history file and stderr, and no BLOCKed reply sent to the judge. It was confirmed to fail when a leak is planted.
+- **Per-run eval reports:** `npm run eval`, `eval:redteam` and `eval:heldout` each write a content-free Markdown + JSON report to `eval/reports/` (git commit, versions, sha256 of each cases file, scorecards, missed and wrongly flagged ids). Held-out batches are never pooled.
 - Recording costs about 1.4 µs per check (about 17 µs with the history file), after the verdict, outside the reported check latency.
 
 ## 0.2.1 — 2026-11-18

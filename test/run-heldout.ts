@@ -12,6 +12,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runGuardEval, guardScorecardMarkdown } from "../src/engine/eval.js";
+import { summarize, writeEvalReport, type ScoreSummary } from "./eval-report.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(HERE, "..", "eval", "heldout");
@@ -63,8 +64,12 @@ const BATCHES = [
   },
 ];
 
+const summaries: ScoreSummary[] = [];
 for (const b of BATCHES) {
-  const score = runGuardEval(path.join(DIR, b.file));
+  const file = path.join(DIR, b.file);
+  const score = runGuardEval(file);
   console.log(guardScorecardMarkdown({ ...score, note: b.note }, "heldout"));
   console.log("\n---\n");
+  summaries.push(summarize(b.file.replace(/\.jsonl$/, ""), score, file, b.note));
 }
+writeEvalReport("heldout", "npm run eval:heldout", summaries);

@@ -291,6 +291,8 @@ npm run eval:heldout # held-out set (Appendix A prompts; see eval/heldout/README
 npm run benchmark    # 10,000-evaluation latency benchmark
 ```
 
+Each `eval*` run also writes a content-free report to `eval/reports/` (git-ignored): `<runner>-<timestamp>.md` and `.json`, plus `<runner>-latest.*`. It records the git commit, Aegis and Node versions and a sha256 of each cases file, so a published number can be traced to the exact run, and lists missed and wrongly flagged case ids (never response text). `--no-report` skips it; `AEGIS_EVAL_REPORT_DIR` moves it.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE). By Vikas Shivpuriya, Aletheia AI Safety Research Core.

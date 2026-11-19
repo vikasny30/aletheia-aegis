@@ -6,3 +6,5 @@ dist/
 # The review plan lives outside the repo at ../aletheia-aegis-review/PLAN.md.
 # This entry is a backstop in case a copy ever lands here.
 PLAN.md
+# Per-run eval reports (npm run eval*); commit one deliberately if a published number cites it.
+eval/reports/
