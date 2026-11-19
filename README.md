@@ -92,7 +92,7 @@ then call `aegis_check_output` with a response and a user prompt.
 | `aegis_run_eval` | Score the guard. `mode: "guard"` runs the bundled labeled case set; `mode: "corpus"` classifies a JSONL incident file against the paper's §3.3 distribution. Returns JSON plus a Markdown scorecard. |
 | `aegis_classify_incident` | Classify incident text with the paper's keyword classifier (Appendix C): per-signature confidence, `min(1.0, hits × 0.4)`, threshold 0.3. For corpus work, not live guarding. |
 | `aegis_list_signatures` | All nine signatures with what Aegis checks, what stays with aletheia-mcp, and what is deferred — including maturity (`stable` / `experimental`). |
-| `aegis_get_telemetry` | Live counts by verdict, flag/block rates, latency percentiles, findings by signature. The audit log never stores response text. |
+| `aegis_get_telemetry` | Live counts by verdict, flag/block rates, latency percentiles, findings by signature, and a `measurement` block: per-stage latency, judge usage and cost, Crossref outcomes, judge overrides (see [Measurement](#measurement)). Counts and timings only; never response text. |
 
 Resources: `aegis://signatures/all`, `aegis://telemetry/summary`, `aegis://telemetry/audit-log`, `aegis://eval/last-scorecard`.
 
@@ -126,12 +126,60 @@ Measured November 11–18, 2026 on this repository's own test suite (`npm test`,
 
 **Read the eval number honestly.** "Self-consistency" is the right word: the bundled set is hand-built to the detectors' documented behavior, so 100% proves the guard does what it says — not that it catches every real-world failure. The held-out numbers are the ones that mean something: on outputs it had never seen, the guard caught 44% of real failures overall (61% on the latest batch) while wrongly flagging about 6.5% of good outputs. It is a fast first-pass filter for common failure patterns, not a complete safety layer. Paraphrase, novel phrasing, and obfuscation can evade any pattern-based filter — the paper says so, and this README does too. The eval set is there to be grown: add cases in `eval/cases.jsonl` (one JSON object per line: `id`, `signature`, `prompt?`, `response`, `expected`, `note?`) and re-run `npm run eval`.
 
+## Measurement
+
+Every guardrail decision should carry its proof: what was caught, what the judge overruled, what it cost, and how long it took. `aegis_get_telemetry` returns that as a `measurement` block, counted in the server as each check runs. It holds **counts and timings only**: no reply text, prompt text, evidence, judge reasons or Crossref references, so measurement adds no second place for PII or secrets to leak (`npm run test:leak` checks this end to end).
+
+| Field | What it counts |
+|---|---|
+| `stageLatency` | p50/p95 wall time for each stage: `patterns` (the deterministic detectors), `judge` (provider calls, not cache hits), `crossref` (lookups) |
+| `judge` | Provider `calls`, `cacheHits`, `errors`, `skippedHardBlock` (the patterns had already BLOCKed, so the reply was never sent), `notUsed`, judge `labels`, `injectionSuspected`, provider-reported `tokens` |
+| `judge.estimatedCostUsd` | Tokens × the prices **you** set in `AEGIS_JUDGE_PRICE_INPUT_PER_MTOK` / `AEGIS_JUDGE_PRICE_OUTPUT_PER_MTOK`. `null` when they are unset: Aegis does not guess at provider prices. `costBasis` says how the number was made |
+| `crossref` | References checked, found, not found, unverifiable; replies where S1 was lifted |
+| `overrides` | Pattern findings the judge overruled, by signature, and `repliesCleared` (pattern-flagged replies the judge cleared to ALLOW) |
+| `rollup` | Replies, blocked, flagged, pattern flags cleared by the judge, judge cost per judged reply |
+| `history` | Whether the JSONL history is on, lines written, write errors (the path is never echoed) |
+
+Example, from five checks with an `openai` judge at example prices (one leaked key, blocked without a judge call; one citation reply judged twice, the second time from cache; one dosage reply the judge flagged):
+
+```json
+{
+  "stageLatency": {
+    "patterns": { "count": 5, "p50Ms": 0.138, "p95Ms": 0.257 },
+    "judge":    { "count": 3, "p50Ms": 1202,  "p95Ms": 1351 },
+    "crossref": { "count": 0, "p50Ms": 0,     "p95Ms": 0 }
+  },
+  "judge": {
+    "calls": 3, "cacheHits": 1, "errors": 0, "skippedHardBlock": 1, "notUsed": 0,
+    "injectionSuspected": 0, "callsWithoutTokenReport": 0,
+    "labels": { "allow": 3, "flag": 1, "block": 0 },
+    "tokens": { "input": 3300, "output": 180 },
+    "estimatedCostUsd": 0.001185,
+    "costBasis": "Estimate: provider-reported tokens x your prices (USD 0.25/M input, 2/M output). Calls without a token report are not costed."
+  },
+  "crossref": { "checks": 0, "references": 0, "found": 0, "notFound": 0, "unverifiable": 0, "s1Lifted": 0 },
+  "overrides": { "findings": 2, "repliesCleared": 2, "bySignature": { "S1": 2 } },
+  "rollup": {
+    "replies": 5, "blocked": 1, "flagged": 1, "patternFlagsClearedByJudge": 2,
+    "judgeCostPerJudgedReplyUsd": 0.000296,
+    "note": "Observed counts only. Whether a block or flag was right needs a label: catch and false-positive rates come from labeled eval runs (npm run eval:heldout), not from runtime telemetry."
+  },
+  "history": { "enabled": false, "linesWritten": 0, "writeErrors": 0 }
+}
+```
+
+**What these numbers are not.** Runtime telemetry has no labels, so it cannot say whether a block was right. It reports what happened; catch rates and false-positive rates come only from labeled eval runs ([Measured results](#measured-results)), with their sources. There is no "time saved" figure: any such number would rest on an invented multiplier.
+
+**History.** Counters live in memory for the life of the server process (each MCP client starts its own). Set `AEGIS_METRICS_LOG` to a local file path to also append one content-free JSON line per check (verdict, signatures, check ids, mode, judge outcome, tokens, Crossref counts, stage times). Each line is a single append, so several server processes can share one file. Roll it up daily or weekly with any JSONL tool; Aegis runs no scheduler of its own.
+
 ## Configuration
 
 | Setting | How | Default |
 |---|---|---|
 | Per-check severity | `block_checks` param on `aegis_check_output`, or `AEGIS_BLOCK_CHECKS` env var (comma-separated check ids, e.g. `S5_DOSAGE_WITHOUT_DEFERRAL`) | FLAG for everything except S3/S6 blocks |
 | Crisis-resource locale | `locale` param (`US`, `GB`, `IE`, `CA`, `AU`, `NZ`, `IN`), or `AEGIS_LOCALE` env var | US; unknown locales get US resources plus the international directory (findahelpline.com) |
+| Metrics history | `AEGIS_METRICS_LOG` env var (local file path) | Off. When set, one content-free JSON line per check (counts, check ids, timings; never response text). See [Measurement](#measurement). |
+| Judge cost estimate | `AEGIS_JUDGE_PRICE_INPUT_PER_MTOK`, `AEGIS_JUDGE_PRICE_OUTPUT_PER_MTOK` (USD per million tokens) | Unset: `estimatedCostUsd` is `null`. Aegis does not ship provider prices, which change. |
 | Debug log | `AEGIS_DEBUG_LOG` env var (local file path) | Off. When set, each evaluation appends one JSON line including the full response text — local file only, never exposed as an MCP resource. Keep the file local; it may contain secrets and sensitive content. |
 
 By default the guard is offline and synchronous: no network requests, sub-millisecond. The two options below make network requests and are off unless you turn them on.
@@ -221,7 +269,9 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 - **The Crossref check only covers citations S1 recognizes.** It lifts S1 when every citation S1 detected belongs to a confirmed reference. A fabricated reference that S1 can't see in the first place ("Brown, A. B. Invented paper. Nature Fake." with no year, or prose like "Brown and Lee confirmed it") passes with or without the check.
 - **S6 is English-first.** A few French, Spanish and German statements of intent are recognized; other languages, and most slang beyond "kms" and "unalive", are not.
 - **S8 is not covered** until the session auditor exists. Single-response guarding cannot see aggregate harm.
-- **No response text is ever stored** in telemetry or the audit log — only verdicts, finding checks, latency, and response length. Finding evidence is capped at 120 characters, and secrets/PII are masked in evidence, never reproduced raw. The opt-in debug log (`AEGIS_DEBUG_LOG`) is the one exception, and it is off by default. If you turn on the model judge, each reply and prompt the patterns don't block is sent to the provider you chose, under that provider's data terms; replies blocked by the patterns (including every detected SSN, card number and secret) are never sent.
+- **The judge needs your own API key.** It does not use MCP sampling (asking the client's model), so a client without a key gets patterns only.
+- **Case citations can't be verified.** The Crossref check covers scholarly works; legal citations ("123 F.3d 456") always keep their S1 flag. There is no court-records lookup (such as CourtListener).
+- **No response text is ever stored** in telemetry, the audit log or the metrics history — only verdicts, finding checks, latency, judge and Crossref counts, and response length. Finding evidence is capped at 120 characters, and secrets/PII are masked in evidence, never reproduced raw. The opt-in debug log (`AEGIS_DEBUG_LOG`) is the one exception, and it is off by default. If you turn on the model judge, each reply and prompt the patterns don't block is sent to the provider you chose, under that provider's data terms; replies blocked by the patterns (including every detected SSN, card number and secret) are never sent.
 
 ## Development
 
@@ -229,10 +279,11 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (45 checks)
-npm run test:judge   # model judge, reference check and security tests, network stubbed (78 checks)
+npm run test:judge   # model judge, reference check, measurement and security tests, network stubbed (90 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)
+npm run test:leak    # content-leak test: fake SSN, key and email must not appear in telemetry, metrics history or stderr (spawns dist/index.js)
 npm run test:parity  # Python/TypeScript classifier parity test
 npm run eval         # guard + corpus scorecards
 npm run eval:redteam # adversarial paraphrase pass (18 cases)

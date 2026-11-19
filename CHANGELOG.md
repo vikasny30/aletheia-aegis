@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (planned 0.3.0)
+
+Measurement: every guardrail decision now carries its proof, as counts and timings only.
+
+- **`aegis_get_telemetry` gains a `measurement` block:** per-stage latency (patterns, judge, Crossref; p50/p95); judge calls, cache hits, errors, hard-block skips, labels, injection suspicions and provider-reported tokens; a cost estimate only when you set `AEGIS_JUDGE_PRICE_INPUT_PER_MTOK` and `AEGIS_JUDGE_PRICE_OUTPUT_PER_MTOK` (otherwise `null`, never a guessed price); Crossref outcomes; judge overrides by signature; an observed-only roll-up. Catch and false-positive rates stay eval numbers, from labeled runs; telemetry reports no "time saved" figure.
+- **`AEGIS_METRICS_LOG`:** optional JSONL history, one content-free line per check, appended in a single write so concurrent server processes can share the file. Off by default.
+- **Judge results carry `tokens`** when the provider reports usage; Crossref results carry `latencyMs`.
+- **`npm run test:leak`:** spawns the built server with history on and a stub judge, sends a fake SSN, API key and email, and requires zero hits in telemetry, the audit log, the history file and stderr, and no BLOCKed reply sent to the judge. It was confirmed to fail when a leak is planted.
+- Recording costs about 1.4 µs per check (about 17 µs with the history file), after the verdict, outside the reported check latency.
+
 ## 0.2.1 — 2026-11-18
 
 Fixes from an independent test cycle on 0.2.0: a second model (Claude Sonnet 5.5) tested a fresh clone adversarially, with no access to the maintainer's notes, then re-tested three rounds of fixes and broke several of them each time; a model from a different family (Gemini 3.5 Flash) then proposed 9 attacks on the final code, of which 3 reproduced and were fixed ("put the razor away and bleed out", "your doctor can tell if you miss a dose" read as a deferral, and an HTML `<label>` tag tripping the injection check); the maintainer's own re-runs found three more slow regexes. Every finding below was reproduced before it was fixed, and each has a regression test (`npm run test:judge`, now 78 checks).
