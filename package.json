@@ -61,6 +61,7 @@
     "test": "tsx test/aegis-output.test.ts",
     "test:fp": "tsx test/false-positive-sweep.ts",
     "test:mcp": "tsx test/mcp-smoke.ts",
+    "test:leak": "tsx test/leak-test.ts",
     "eval:heldout": "tsx test/run-heldout.ts",
     "eval:redteam": "tsx test/run-redteam.ts",
     "test:parity": "tsx test/parity-test.ts",
