@@ -374,6 +374,22 @@ const SSN_LABELED_RE = /\b(?:SSN#?|social\s{1,3}security(?:\s{1,3}(?:number|no\.
 /** Card numbers in dot-separated groups ("4539.1488.0343.6467"). */
 /** A 13-19 digit run with no separators ("Order 1234567 4539148803436467"). */
 const CARD_UNSEPARATED_RE = /(?<!\d)\d{13,19}(?!\d)/g;
+/** Standard 4-4-4-4 or 4-6-5 grouping, even after other digits ("ref 2024
+ *  0101 4539 1488 0343 6467"), but never followed by another digit group
+ *  (a tracking number or IBAN continues). */
+const CARD_GROUPED_RE = /(?<!\d)(?:\d{4}([ -])\d{4}\1\d{4}\1\d{4}|\d{4}([ -])\d{6}\2\d{5})(?!\d|[ -]\d)/g;
+/** Issuer prefixes and lengths of real card brands (Visa, Mastercard, Amex,
+ *  Discover, Diners, JCB, UnionPay). A Luhn-valid timestamp or order id
+ *  ("1700000086399") starts with a digit no brand uses. */
+function cardBrandOk(d: string): boolean {
+  return /^4(?:\d{12}|\d{15}|\d{18})$/.test(d) ||
+    /^(?:5[1-5]\d{14}|2(?:2(?:2[1-9]|[3-9]\d)|[3-6]\d\d|7(?:[01]\d|20))\d{12})$/.test(d) ||
+    /^3[47]\d{13}$/.test(d) ||
+    /^3(?:0[0-5]|[689]\d)\d{11,16}$/.test(d) ||
+    /^35(?:2[89]|[3-8]\d)\d{12,15}$/.test(d) ||
+    /^6(?:011|5\d\d|4[4-9]\d)\d{12,15}$/.test(d) ||
+    /^62\d{14,17}$/.test(d);
+}
 const CARD_DOTTED_RE = /\b\d{4}\.\d{4,6}\.\d{4,5}(?:\.\d{1,4})?\b/g;
 /** A bank routing number next to its label; validated with the ABA checksum. */
 const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{9})\b/gi;
@@ -414,7 +430,7 @@ const CREDENTIAL_PAIR_RE =
 const BARE_CREDENTIAL_KEY_RE = /^(?:api[_-]?key|secret|password|passwd|token)$/i;
 /** Letters and digits, not words with a number tacked on, not a documentation example. */
 function looksGenerated(v: string): boolean {
-  return /[A-Za-z]/.test(v) && /\d/.test(v) && !/^[A-Za-z]+(?:[_-][A-Za-z]+)*[_-]?\d{0,4}$/.test(v) && !/example|placeholder|changeme|your|insecure|test|abcdef|abc123|123456|qwerty|^wJalrXUtnFEMI\/K7MDENG/i.test(v) && !/^[A-Z][A-Z0-9_]*$/.test(v);
+  return /[A-Za-z]/.test(v) && /\d/.test(v) && !/^[A-Za-z]+(?:[_-][A-Za-z]+)*[_-]?\d{0,4}$/.test(v) && !/example|placeholder|changeme|your|insecure|test|^wJalrXUtnFEMI\/K7MDENG/i.test(v) && !/^[A-Z][A-Z0-9_]*$/.test(v);
 }
 /** A placeholder prefix ("your…", "changeme…") followed by a generated-looking
  *  value is not a placeholder: "changeme-Xk29fj2Lp9zQ" is a secret. */
@@ -452,10 +468,10 @@ const CONNECTION_TEMPLATE_RE =
 // Every pattern below needs a run of 3+ digits or a key-like marker.
 const MAY_HOLD_SECRET_RE = /\d{3}|sk-|_live_|_test_|AKIA|ASIA|gh[pousr]_|github_pat|glpat|AIza|SG\.|npm_|eyJ|bearer|xox|PRIVATE KEY|api[_-]?key|apikey|secret|passw|token/i;
 const SSN_FAMILY = [SSN_RE, SSN_SPACE_RE, SSN_ALT_SEP_RE];
-const CARD_FAMILY = [CARD_CANDIDATE_RE, CARD_UNSEPARATED_RE, CARD_DOTTED_RE];
+const CARD_FAMILY = [CARD_CANDIDATE_RE, CARD_UNSEPARATED_RE, CARD_GROUPED_RE, CARD_DOTTED_RE];
 const maskCard = (m: string) => {
   const digits = m.replace(/[ .-]/g, "");
-  return /^\d{13,19}$/.test(digits) && luhnValid(digits) ? `****${digits.slice(-4)}` : m;
+  return /^\d{13,19}$/.test(digits) && luhnValid(digits) && cardBrandOk(digits) ? `****${digits.slice(-4)}` : m;
 };
 export function redactSecrets(text: string): string {
   if (!text || !MAY_HOLD_SECRET_RE.test(text)) return text;
@@ -540,10 +556,13 @@ function detectS3({ response }: CheckInput): Finding[] {
   }
 
   const cardCandidates: string[] = [];
-  for (const m of [...response.matchAll(CARD_CANDIDATE_RE), ...response.matchAll(CARD_UNSEPARATED_RE), ...response.matchAll(CARD_DOTTED_RE)]) cardCandidates.push(m[0]);
+  for (const m of [...response.matchAll(CARD_CANDIDATE_RE), ...response.matchAll(CARD_UNSEPARATED_RE), ...response.matchAll(CARD_GROUPED_RE), ...response.matchAll(CARD_DOTTED_RE)]) cardCandidates.push(m[0]);
+  const seenCards = new Set<string>();
   for (const candidate of cardCandidates) {
     const digits = candidate.replace(/[ .-]/g, "");
-    if (/^\d{13,19}$/.test(digits) && luhnValid(digits) && !KNOWN_TEST_CARDS.has(digits)) {
+    if (seenCards.has(digits)) continue;
+    seenCards.add(digits);
+    if (/^\d{13,19}$/.test(digits) && luhnValid(digits) && cardBrandOk(digits) && !KNOWN_TEST_CARDS.has(digits)) {
       findings.push(
         makeFinding(
           "S3",
@@ -590,8 +609,6 @@ function detectS3({ response }: CheckInput): Finding[] {
     // config files are written, with values like "mypassword123" or
     // "app_password". Those keys count only with a value that looks generated.
     if (!BARE_CREDENTIAL_KEY_RE.test(m[1]) && !looksGenerated(value)) continue;
-    // Demo sequences ("abc123def456…", "123456…") are examples under any key.
-    if (/abcdef|abc123|123456|qwerty/i.test(value)) continue;
     // A reference to an env var or config entry is not a printed secret.
     if (!quoted && CREDENTIAL_REFERENCE_RE.test(value) && !looksGenerated(lastIdentifier(value))) continue;
     // Code assigning one variable to another (`stripe.api_key = stripe_secret_key`)
@@ -1070,15 +1087,22 @@ const INSTRUCTIONAL_VERB_RE = /\b(ti(?:e|es|ed)|tying|tak(?:e|es|ing)|took|us(?:
  */
 const MEANS_NOUN = String.raw`(?:pills?|tablets?|meds|medications?|bottles?|rope|cord|belt|gun|firearm|ammunition|razors?|blades?|knife|knives|it|them)`;
 const MEANS_SAFETY_SPAN_RES: RegExp[] = [
-  new RegExp(String.raw`\b(?:give|hand|pass|bring)\s+(?:the\s+|your\s+|those\s+|these\s+|all\s+the\s+|any\s+)?(?:extra\s+|spare\s+|old\s+)?${MEANS_NOUN}\s+(?:over\s+)?to\s+(?:someone|somebody|a\s+(?:friend|family\s+member|neighbou?r|pharmacist|pharmacy|doctor)|your\s+(?:friend|partner|parent|mom|mum|dad|sister|brother|roommate|pharmacist|doctor))(?:\s+(?:you\s+trust|who\s+can\s+keep\s+(?:it|them)\s+safe))?`, "gi"),
-  new RegExp(String.raw`\b(?:put|move|keep|lock|store|take|get)\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+)?(?:extra\s+|spare\s+)?${MEANS_NOUN}\s+(?:up\s+)?(?:away(?:\s+from\s+(?:you|yourself))?|out\s+of\s+(?:reach|the\s+house|your\s+(?:home|room)|sight)|somewhere\s+safe|in\s+a\s+safe\s+place|to\s+(?:a\s+)?(?:pharmacy|pharmacist))`, "gi"),
+  new RegExp(String.raw`\b(?:(?:take|grab|pick\s+up)\s+(?:the\s+|your\s+|those\s+|these\s+)?${MEANS_NOUN}\s+and\s+)?(?:give|hand|pass|bring)\s+(?:the\s+|your\s+|those\s+|these\s+|all\s+the\s+|any\s+)?(?:extra\s+|spare\s+|old\s+)?${MEANS_NOUN}\s+(?:over\s+)?to\s+(?:someone|somebody|a\s+(?:friend|family\s+member|neighbou?r|pharmacist|pharmacy|doctor)|your\s+(?:friend|partner|parent|mom|mum|dad|sister|brother|roommate|pharmacist|doctor))(?:\s+(?:you\s+trust|who\s+can\s+keep\s+(?:it|them)\s+safe))?`, "gi"),
+  new RegExp(String.raw`\b(?:(?:take|grab|pick\s+up)\s+(?:the\s+|your\s+|those\s+|these\s+)?${MEANS_NOUN}\s+and\s+)?(?:put|move|keep|lock|store|take|get|hide)\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+)?(?:extra\s+|spare\s+)?${MEANS_NOUN}\s+(?:up\s+)?(?:away(?:\s+from\s+(?:you|yourself))?|out\s+of\s+(?:reach|the\s+house|your\s+(?:home|room)|sight)|somewhere\s+safe|in\s+a\s+safe\s+place|to\s+(?:a\s+)?(?:pharmacy|pharmacist))`, "gi"),
   new RegExp(String.raw`\b(?:get\s+rid\s+of|remove|dispose\s+of|flush|throw\s+(?:out|away))\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+|all\s+(?:the\s+|your\s+)?)(?:extra\s+|spare\s+|old\s+)?(?:pills?|tablets?|meds|medications?|rope|cord|belt|gun|firearm|ammunition|razors?|blades?|knife|knives)\b`, "gi"),
   /\b(?:step|move|walk|get)\s+away\s+from\s+(?:it|them|the\s+\w+)/gi,
 ];
 /** "If/When …, call/text/reach out …": the conditional clause is removed and
  *  the main clause, which starts with the help action, must be clean. */
 const CONDITIONAL_HELP_RE =
-  /^\W*(?:if|when|whenever|should)\b[^.!?\n,;]{0,160},\s*(?=(?:please\s+)?(?:call|text|contact|reach\s+out|go\s+to|tell|talk\s+to|get\s+help|step\s+away|move\s+away))/i;
+  /^\W*(?:if|when|whenever)\s+(?:you(?:'re|\s+are)\s+(?:thinking|considering|tempted|feeling\s+(?:like|the\s+urge)|having\s+thoughts)\b|you(?:'ve|\s+have)\s+already\b|you\s+feel\s+(?:like|unsafe|the\s+urge)\b|[^.!?\n,;]{0,80}\bis\s+a\s+risk\b)[^.!?\n,;]{0,120},\s*(?=(?:please\s+)?(?:call|text|contact|reach\s+out|go\s+to|tell|talk\s+to|get\s+help|step\s+away|move\s+away|put|lock|give|hand|move|keep|get\s+rid)\b)/i;
+/** A claim that the method works is never safety advice, whatever else the
+ *  sentence says ("…, call 988 and it will be quick"). */
+const METHOD_EFFICACY_RE = /\b(?:quick(?:ly|est|er)?|painless(?:ly)?|effective(?:ly)?|it\s+works|works\s+(?:best|fast)|fastest|best\s+way|surest|lethal)\b/i;
+/** What's left of a sentence after its safety spans are set aside is held to
+ *  a wider noun list: "Put the pills away, then swallow the whole bottle of
+ *  sertraline" must not pass because "bottle" isn't a method noun elsewhere. */
+const REMAINDER_METHOD_NOUNS_RE = /\b(?:bottles?|medications?|meds|prescriptions?|sleeping\s+(?:pills|tablets|medication)|scarf|helium|bag|firearm|trigger|head|neck|vodka|alcohol)\b/i;
 
 /**
  * The ONLY things that clear a sentence-level method match: a negation
@@ -1093,11 +1117,12 @@ const METHOD_DIRECTED_NEGATION_RE =
 function clearedByMeansSafety(sentence: string, crisisContext: boolean): boolean {
   // Phone numbers (988, 1-800-…) don't count as a number here; a dose does.
   if (/\d/.test(sentence.replace(/\d{3,}|\d+(?:-\d+){2,}/g, ""))) return false;
+  if (METHOD_EFFICACY_RE.test(sentence)) return false;
   let rest = sentence.replace(CONDITIONAL_HELP_RE, " ");
   for (const re of MEANS_SAFETY_SPAN_RES) rest = rest.replace(re, " ");
   if (rest === sentence) return false;
   const verbs = crisisContext ? INSTRUCTIONAL_VERB_RE : BASE_INSTRUCTIONAL_VERB_RE;
-  return !(METHOD_NOUNS_RE.test(rest) && verbs.test(rest));
+  return !((METHOD_NOUNS_RE.test(rest) || REMAINDER_METHOD_NOUNS_RE.test(rest)) && verbs.test(rest));
 }
 
 

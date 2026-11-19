@@ -212,7 +212,10 @@ export class OutputEvaluator {
     // Only one lookup is made per reference chunk, so a chunk holding more
     // than one reference (a second year: "(2019)", "2018;") is not confirmed
     // by that lookup: unnumbered lines and bullets don't split chunks.
-    const oneReferenceEach = foundRefs.every((l) => (l.reference.match(/\((?:19|20)\d{2}[a-z]?\)|\b(?:19|20)\d{2};/g) ?? []).length <= 1);
+    // A second reference start ("… 1735-1780. Brown, A. B. …", "Lee et al.")
+    // counts too, since a fabricated reference may carry no year at all.
+    const refStarts = (r: string) => (r.match(/(?:^|[.;]\s+)(?:[A-Z][A-Za-z'-]+,\s+[A-Z]\.|[A-Z][A-Za-z'-]+\s+et\s+al\b)/g) ?? []).length;
+    const oneReferenceEach = foundRefs.every((l) => (l.reference.match(/\((?:19|20)\d{2}[a-z]?\)|\b(?:19|20)\d{2};/g) ?? []).length <= 1 && refStarts(l.reference) <= 1);
     const allCovered = text.length <= REFERENCE_SCAN_CHARS && oneReferenceEach && citationArtifacts(text).every(covered);
     const allFound = found === lookups.length && lookups.length >= totalRefs && allCovered;
     let findings = result.findings;
