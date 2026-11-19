@@ -182,7 +182,9 @@ export class OutputEvaluator {
   ): Promise<CheckResult> {
     let result = opts.judge ? await this.evaluateWithJudge(rawInput, opts.judge) : this.evaluate(rawInput);
     if (!opts.verifyCitations || !result.findings.some((f) => f.signature === "S1")) return result;
+    const lookupStarted = performance.now();
     const lookups = await (opts.lookup ?? lookupReferences)(normalizeText(rawInput.response));
+    const lookupMs = Math.round((performance.now() - lookupStarted) * 1000) / 1000;
     if (lookups.length === 0) return result;
     const found = lookups.filter((l) => l.status === "found").length;
     const notFound = lookups.filter((l) => l.status === "not_found");
@@ -250,6 +252,7 @@ export class OutputEvaluator {
         notFound: notFound.length,
         unverifiable: lookups.length - found - notFound.length,
         liftedS1: allFound,
+        latencyMs: lookupMs,
         lookups,
       },
     };
@@ -320,7 +323,7 @@ export class OutputEvaluator {
       latencyMs: Math.round((base.latencyMs + jv.latencyMs) * 1000) / 1000,
       explanation: explain(verdict, kept, base.checksSkipped),
       mode: "patterns+judge",
-      judge: { provider: jv.provider, model: jv.model, label: jv.label, signatures: jv.signatures, reason: jv.reason, latencyMs: jv.latencyMs, cached: jv.cached, policy, ...(injection ? { injectionSuspected: true } : {}) },
+      judge: { provider: jv.provider, model: jv.model, label: jv.label, signatures: jv.signatures, reason: jv.reason, latencyMs: jv.latencyMs, cached: jv.cached, ...(jv.tokens ? { tokens: jv.tokens } : {}), policy, ...(injection ? { injectionSuspected: true } : {}) },
       ...(overruled.length ? { overruledFindings: overruled } : {}),
     };
   }

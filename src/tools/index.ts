@@ -147,7 +147,7 @@ export function registerTools(ctx: AegisToolContext) {
     {
       name: "aegis_get_telemetry",
       description:
-        "Live telemetry: evaluation counts by verdict, flag/block rates, latency percentiles, and findings by signature and check. The audit log never stores response text.",
+        "Live telemetry: evaluation counts by verdict, flag/block rates, latency percentiles, findings by signature and check, and measurement: per-stage latency (patterns, judge, Crossref), judge usage (calls, cache hits, errors, skips, tokens, cost estimate when prices are configured), Crossref outcomes, and judge overrides by signature. Counts and timings only: the audit log and metrics never store response text.",
       inputSchema: {
         type: "object",
         properties: {

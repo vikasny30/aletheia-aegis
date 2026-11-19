@@ -48,6 +48,9 @@ export interface JudgeVerdict {
   provider: JudgeProvider;
   latencyMs: number;
   cached: boolean;
+  /** Tokens the provider reported for this review (all attempts), when it
+   *  reported them. Absent on a cache hit: nothing was spent. */
+  tokens?: { input: number; output: number };
 }
 
 type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal }) => Promise<{ ok: boolean; status: number; json(): Promise<any>; text(): Promise<string> }>;
@@ -200,7 +203,13 @@ export function parseJudgeAnswer(text: string): { label: JudgeLabel; signatures:
   return best;
 }
 
-async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike, signal: AbortSignal): Promise<string> {
+type ProviderAnswer = { text: string; tokens?: { input: number; output: number } };
+/** Token counts as each provider reports them; undefined when absent. */
+function usage(input: unknown, output: unknown): ProviderAnswer["tokens"] {
+  return typeof input === "number" && typeof output === "number" ? { input, output } : undefined;
+}
+
+async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike, signal: AbortSignal): Promise<ProviderAnswer> {
   const post = async (url: string, headers: Record<string, string>, body: unknown) => {
     const res = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body), signal });
     if (!res.ok) throw new Error(`HTTP ${res.status} from ${cfg.provider}: ${(await res.text()).slice(0, 160)}`);
@@ -212,12 +221,12 @@ async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike
         // No temperature: current Claude models reject sampling parameters. They
         // think by default, so leave room for it and keep the effort low.
         { model: cfg.model, max_tokens: 4000, output_config: { effort: "low" }, system: JUDGE_RUBRIC, messages: [{ role: "user", content: user }] });
-      return (d.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
+      return { text: (d.content ?? []).filter((b: any) => b.type === "text").map((b: any) => b.text).join(""), tokens: usage(d.usage?.input_tokens, d.usage?.output_tokens) };
     }
     case "google": {
       const d = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`, { "x-goog-api-key": cfg.apiKey },
         { systemInstruction: { parts: [{ text: JUDGE_RUBRIC }] }, contents: [{ role: "user", parts: [{ text: user }] }], generationConfig: { temperature: 0, maxOutputTokens: 2000 } });
-      return (d.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join("");
+      return { text: (d.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join(""), tokens: usage(d.usageMetadata?.promptTokenCount, d.usageMetadata?.candidatesTokenCount) };
     }
     case "openai":
     case "openai-compatible": {
@@ -225,7 +234,7 @@ async function callProvider(cfg: JudgeConfig, user: string, fetchImpl: FetchLike
       const body: Record<string, unknown> = { model: cfg.model, messages: [{ role: "system", content: JUDGE_RUBRIC }, { role: "user", content: user }] };
       if (cfg.provider === "openai") body.max_completion_tokens = 2000; else { body.max_tokens = 2000; body.temperature = 0; }
       const d = await post(`${base}/chat/completions`, { authorization: `Bearer ${cfg.apiKey}` }, body);
-      return d.choices?.[0]?.message?.content ?? "";
+      return { text: d.choices?.[0]?.message?.content ?? "", tokens: usage(d.usage?.prompt_tokens, d.usage?.completion_tokens) };
     }
   }
 }
@@ -257,14 +266,17 @@ export class Judge {
     const timer = setTimeout(() => ctrl.abort(), this.config.timeoutMs);
     try {
       let parsed = null;
+      let tokens: JudgeVerdict["tokens"];
       for (let attempt = 0; attempt < 2 && !parsed; attempt++) {
-        parsed = parseJudgeAnswer(await callProvider(this.config, userMessage(clip(response, JUDGE_MAX_CHARS), userPrompt === undefined ? undefined : clip(userPrompt, JUDGE_MAX_CHARS / 4)), this.fetchImpl, ctrl.signal));
+        const answer = await callProvider(this.config, userMessage(clip(response, JUDGE_MAX_CHARS), userPrompt === undefined ? undefined : clip(userPrompt, JUDGE_MAX_CHARS / 4)), this.fetchImpl, ctrl.signal);
+        if (answer.tokens) tokens = { input: (tokens?.input ?? 0) + answer.tokens.input, output: (tokens?.output ?? 0) + answer.tokens.output };
+        parsed = parseJudgeAnswer(answer.text);
       }
       if (!parsed) throw new Error("the judge did not return a usable verdict");
       const verdict = { ...parsed, model: this.config.model, provider: this.config.provider };
       this.cache.set(key, verdict);
       if (this.cache.size > this.cacheSize) this.cache.delete(this.cache.keys().next().value as string);
-      return { ...verdict, cached: false, latencyMs: Date.now() - started };
+      return { ...verdict, cached: false, latencyMs: Date.now() - started, ...(tokens ? { tokens } : {}) };
     } catch (e) {
       const raw = (e as Error).name === "AbortError" ? `timed out after ${this.config.timeoutMs} ms` : (e as Error).message;
       const msg = redactKey(raw, this.config.apiKey);

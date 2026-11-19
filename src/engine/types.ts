@@ -89,6 +89,8 @@ export interface CheckResult {
     reason?: string;
     latencyMs?: number;
     cached?: boolean;
+    /** Tokens the provider reported for this review; absent on a cache hit. */
+    tokens?: { input: number; output: number };
     policy: "balanced" | "strict";
     /** The reply or prompt contained text aimed at the reviewer; the judge
      *  could add findings but not overrule the patterns. */
@@ -110,6 +112,8 @@ export interface CheckResult {
     notFound: number;
     unverifiable: number;
     liftedS1: boolean;
+    /** Wall time for the Crossref lookups. */
+    latencyMs: number;
     lookups: { reference: string; status: string; match?: { title: string; firstAuthor: string; year?: number; doi?: string } }[];
   };
 }
@@ -144,6 +148,49 @@ export interface TelemetrySummary {
   };
   findingsBySignature: Record<string, number>;
   findingsByCheck: Record<string, number>;
+  /** Observed counts and timings only: no reply text, evidence or PII. */
+  measurement: MeasurementSummary;
+}
+
+export interface StageLatency { count: number; p50Ms: number; p95Ms: number }
+
+export interface MeasurementSummary {
+  /** Per-stage wall time. "patterns" is the deterministic detectors alone. */
+  stageLatency: { patterns: StageLatency; judge: StageLatency; crossref: StageLatency };
+  judge: {
+    /** Provider calls made (cache misses that reached the network). */
+    calls: number;
+    cacheHits: number;
+    errors: number;
+    /** Not sent: the patterns had already BLOCKed (a BLOCK is final). */
+    skippedHardBlock: number;
+    /** Judge not configured, or switched off for that call. */
+    notUsed: number;
+    labels: { allow: number; flag: number; block: number };
+    injectionSuspected: number;
+    /** Sums of provider-reported tokens; calls without a report are counted in callsWithoutTokenReport. */
+    tokens: { input: number; output: number };
+    callsWithoutTokenReport: number;
+    /** Only when AEGIS_JUDGE_PRICE_INPUT_PER_MTOK and AEGIS_JUDGE_PRICE_OUTPUT_PER_MTOK are set; null otherwise. */
+    estimatedCostUsd: number | null;
+    costBasis: string;
+  };
+  crossref: { checks: number; references: number; found: number; notFound: number; unverifiable: number; s1Lifted: number };
+  /** Pattern findings the judge overruled (balanced policy), by signature. */
+  overrides: { findings: number; repliesCleared: number; bySignature: Record<string, number> };
+  /** Observed totals only. Catch and false-positive rates are eval numbers
+   *  (labeled runs), never runtime numbers: no label exists at runtime. */
+  rollup: {
+    replies: number;
+    blocked: number;
+    flagged: number;
+    /** Replies the patterns flagged that the judge cleared to ALLOW. */
+    patternFlagsClearedByJudge: number;
+    judgeCostPerJudgedReplyUsd: number | null;
+    note: string;
+  };
+  /** JSONL history file, when AEGIS_METRICS_LOG is set. Path never echoed. */
+  history: { enabled: boolean; linesWritten: number; writeErrors: number };
 }
 
 export interface SignatureInfo {
