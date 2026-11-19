@@ -2,6 +2,8 @@
 
 Deterministic, sub-millisecond guard for **what a model says** — checked before the response reaches the user. No LLM in the hot path by default; an optional model judge, with your own API key, catches far more. A first-line pre-filter, not a guarantee.
 
+Built for **AI safety** and **responsible AI** in production: harms that can't be undone (self-harm method detail, leaked secrets) fail closed, and no model judge can talk a BLOCK down.
+
 Aegis is the companion to [aletheia-mcp](https://github.com/vikasny30/aletheia-mcp), which guards tool calls *before they execute* (scope creep S3, prompt injection S2b). Aegis guards the other side: the model's own output. The two servers share the [Aletheia taxonomy](https://github.com/vikasny30/aletheia-paper) — nine behavioral failure signatures validated against 2,571 incident entries — and split it by layer, not by duplicating it.
 
 ## See it in 90 seconds
@@ -144,7 +146,7 @@ Pattern matching catches failures with a fixed shape (leaked SSNs, card numbers 
 | `AEGIS_JUDGE_API_KEY` | Your key. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GEMINI_API_KEY` also work for the matching provider |
 | `AEGIS_JUDGE_MODEL` | Optional. Defaults: `claude-haiku-5-5`, `gpt-5.4-mini`, `gemini-3.5-flash`. Required for `openai-compatible` |
 | `AEGIS_JUDGE_BASE_URL` | Required for `openai-compatible`, e.g. `https://openrouter.ai/api/v1` |
-| `AEGIS_JUDGE_POLICY` | `balanced` (default): the judge decides, but leaked SSNs, card numbers and secrets always block, and the judge can soften another pattern BLOCK only to FLAG, never clear it. `strict`: flag when either the patterns or the judge flags (more catches, about twice the false alarms) |
+| `AEGIS_JUDGE_POLICY` | `balanced` (default): the judge decides on FLAG-level findings, but every pattern BLOCK is a hard invariant: leaked SSNs, card numbers and secrets, S6 self-harm method or encouragement, and any check escalated with `AEGIS_BLOCK_CHECKS` always block, whatever the judge says. The judge can make a verdict stricter, never let blocked content through. `strict`: flag when either the patterns or the judge flags (more catches, about twice the false alarms) |
 | `AEGIS_JUDGE_TIMEOUT_MS` | Default `20000`. On timeout or any error the pattern verdict is returned, with `mode: "patterns (judge unavailable)"` |
 | `AEGIS_JUDGE_ALLOW_OPT_OUT` | `1` lets a caller skip the judge for one call with `judge: false`. Off by default, because the caller may be the model whose reply is being checked |
 

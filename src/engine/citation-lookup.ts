@@ -73,8 +73,24 @@ export function matches(reference: string, item: any): boolean {
     return hit / t.size;
   };
   // Title overlap, or (when the reply gives no title) the journal name: first
-  // author + year + journal is still a specific, checkable claim.
-  return overlap(String(item?.title?.[0] ?? "")) >= 0.5 || (Boolean(year && refYear) && overlap(String(item?.["container-title"]?.[0] ?? "")) >= 0.75);
+  // author + year + journal is still a specific, checkable claim. When the
+  // reference does carry a title, it must match: a real journal under an
+  // invented title is still an invented paper.
+  const container = String(item?.["container-title"]?.[0] ?? "");
+  if (overlap(String(item?.title?.[0] ?? "")) >= 0.5) return true;
+  if (!(year && refYear) || overlap(container) < 0.75) return false;
+  const containerTokens = tokens(container);
+  return [...tokens(claimedTitle(reference))].filter((t) => !containerTokens.has(t)).length < 2;
+}
+
+/** The title a reference claims, if it states one: a "Title:" field, or the
+ *  sentence after "(2022)." in author-year style. Labeled entries without a
+ *  Title field claim none. */
+function claimedTitle(reference: string): string {
+  const labeled = reference.match(/\bTitle\s*:\s*(.*?)(?=\b(?:Authors?|Journal|Year|Publication\s+Year|Summary|Key\s+Finding|Findings?)\s*:|$)/i);
+  if (labeled) return labeled[1];
+  if (/\b(?:Authors?|Journal)\s*:/i.test(reference)) return "";
+  return reference.match(/\(\s*(?:19|20)\d{2}[a-z]?\s*\)\s*[.,:]?\s*([^.?!]{10,300}[.?!])/)?.[1] ?? "";
 }
 
 /** The searchable part of an entry: drop a heading before "Authors:", field

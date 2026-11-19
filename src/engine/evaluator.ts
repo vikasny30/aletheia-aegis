@@ -13,9 +13,13 @@ import type { CheckInput, CheckResult, Finding, GuardedSignature, Severity, Verd
 import { judgeWouldTruncate, looksLikeJudgeInjection, type Judge } from "./judge.js";
 import { REFERENCE_SCAN_CHARS, extractReferences, lookupReferences, type ReferenceLookup } from "./citation-lookup.js";
 
-/** Pattern checks the judge can never overrule: structured leaks (SSNs, card
- *  numbers, secrets) are exact matches, not judgment calls. */
-const HARD_CHECK = (f: Finding) => f.signature === "S3";
+/** Pattern findings the judge can never overrule or soften: structured leaks
+ *  (SSNs, card numbers, secrets) are exact matches, not judgment calls, and
+ *  every BLOCK (S6 self-harm method or encouragement, and any check a deployer
+ *  escalated) is a hard invariant. The judge reads attacker-controlled text,
+ *  so it may make a verdict stricter but never let blocked content through,
+ *  not even with a warning. It can still clear FLAG-level findings. */
+const HARD_CHECK = (f: Finding) => f.signature === "S3" || f.action === "block";
 
 const JUDGE_REMEDIATION: Record<GuardedSignature, string> = {
   S1: "Verify the cited sources or figures, or remove them and say they could not be verified.",
@@ -294,16 +298,6 @@ export class OutputEvaluator {
       });
       // A pattern finding on a signature the judge also flagged supports it.
       for (const f of overruled.splice(0)) (sigs.includes(f.signature) ? kept : overruled).push(f);
-    }
-    // Floor: the judge may soften a pattern BLOCK to FLAG but never clear it.
-    // A reply that manipulates the judge then still reaches the user only
-    // with a warning, never as clean.
-    if (base.verdict === "BLOCK" && verdictFor(kept) === "ALLOW") {
-      const strongest = overruled.find((f) => f.action === "block") ?? overruled[0];
-      if (strongest) {
-        overruled.splice(overruled.indexOf(strongest), 1);
-        kept.push({ ...strongest, action: "flag", severity: "HIGH", description: `${strongest.description} (Blocked by the patterns; the model judge disagreed, so it is flagged rather than cleared.)` });
-      }
     }
     const verdict = verdictFor(kept);
     return {

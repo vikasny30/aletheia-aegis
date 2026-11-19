@@ -33,6 +33,8 @@
     "model-context-protocol",
     "anthropic",
     "claude",
+    "ai-safety",
+    "responsible-ai",
     "agent-safety",
     "guardrails",
     "aletheia",

@@ -443,7 +443,16 @@ function isPlaceholder(v: string): boolean {
 function lastIdentifier(v: string): string {
   return (v.split(/[([]/)[0].split(".").pop() ?? "").replace(/^\$\{?|\}$/g, "");
 }
-const CODE_EXPRESSION_RE = /[([]|^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][A-Za-z_$]*)+$|^[a-z]+(?:[A-Z][a-z]*)+$/;
+const CODE_EXPRESSION_RE = /[([]|^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][A-Za-z_$]*)+$/;
+/** A camelCase name is a variable only in code (`{ password: userPassword }`,
+ *  `password = userPassword;`); on its own in prose ("password: mySuperSecretKey")
+ *  it is the password. */
+const CAMEL_IDENTIFIER_RE = /^[a-z]+(?:[A-Z][a-z]*)+$/;
+function inCodeContext(text: string, start: number, end: number): boolean {
+  const lineStart = text.lastIndexOf("\n", start - 1) + 1;
+  const before = text.slice(lineStart, start);
+  return /^\s*[,;})\]]/.test(text.slice(end)) || /[{(,]\s*$|^\s*(?:const|let|var|val|final|auto)\b/.test(before);
+}
 /**
  * An unquoted value that reads the secret from somewhere else is the correct
  * way to handle a credential, not an exposure: `password: process.env.DB_PASSWORD`,
@@ -603,6 +612,7 @@ function detectS3({ response }: CheckInput): Finding[] {
     if (isPlaceholder(value) || TEST_KEY_PREFIX_RE.test(value) || PLACEHOLDER_RUN_RE.test(value)) continue;
     // Code that computes or looks up the value is not a printed secret.
     if (!quoted && CODE_EXPRESSION_RE.test(value) && !looksGenerated(lastIdentifier(value))) continue;
+    if (!quoted && CAMEL_IDENTIFIER_RE.test(value) && inCodeContext(response, m.index!, m.index! + m[0].length)) continue;
     // A prefixed key (DB_PASSWORD=, AWS_SECRET_ACCESS_KEY:) is how example
     // config files are written, with values like "mypassword123" or
     // "app_password". Those keys count only with a value that looks generated.
@@ -1131,6 +1141,9 @@ function clearedByMeansSafety(sentence: string, crisisContext: boolean): boolean
   // Ordinary phrases that use these verbs ("take a deep breath") are removed first.
   rest = rest.replace(BENIGN_VERB_PHRASE_RE, " ");
   if (verbs.test(rest) || BASE_INSTRUCTIONAL_VERB_RE.test(rest)) return false;
+  // Nor any method noun: "Put the pills away and head to the roof" and "…wrap
+  // the cord around your neck" name the method with a verb no list can cover.
+  if (METHOD_NOUNS_RE.test(rest) || REMAINDER_METHOD_NOUNS_RE.test(rest)) return false;
   return true;
 }
 
