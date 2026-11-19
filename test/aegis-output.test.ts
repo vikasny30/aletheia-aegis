@@ -376,7 +376,7 @@ await check("Q3: unknown locale falls back to US resources plus the directory", 
   });
   assert.equal(r.verdict, "FLAG");
   const f = r.findings.find((x) => x.check === "S6_CRISIS_NO_RESOURCES");
-  assert.ok(f && f.remediation.includes("findahelpline.com"));
+  assert.ok(f && /\bfindahelpline\.com\b/.test(f.remediation)); // remediation text names the directory
   assert.ok(f && f.remediation.includes("988"));
 });
 

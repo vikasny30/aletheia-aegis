@@ -39,6 +39,10 @@
   - **Crossref lift cleared judge findings.** With all references found, the lift removed every S1 finding, including a judge finding about a fabricated statistic next to one real reference. It now clears only `S1_UNVERIFIED_CITATION`.
   - **Judge answers with braces were dropped.** A reason quoting code (`function f() { ... }`) failed to parse, so the judge was discarded and patterns used. The parser now tracks braces outside strings.
   - **`judge.error` was not masked.** A secret echoed in a provider error came back to the caller; it is now masked like every other returned field.
+- **Regex denial of service (fixed; found by GitHub CodeQL after the repo went public, then all 254 regexes checked with the recheck analyzer):**
+  - **Exponential:** the S5 directive pattern matched `**` two ways, so a line of about 44 asterisks froze the guard for 33 s, and each two more roughly tripled it. The prefix now matches each character one way (100,000 asterisks: 3 ms).
+  - **Polynomial:** five patterns (legal case citations, case names with years, author-year citations, labeled SSNs, routing numbers) took 3–8 s on 55,000–77,000-character inputs and grew quadratically toward the 1,000,000-character cap; one prompt-side crisis pattern ("letters to my kids … it's time") took 2.6 s on a 200,000-character prompt. Name tokens and whitespace runs are now bounded and the crisis pattern uses one lazy window. Every analyzer-generated attack, stretched to the full input caps, now runs under about 0.3 s; the 13 regexes the analyzer still can't prove safe were measured that way. Detection is unchanged on all 215 eval cases, all eleven held-out batches and the S3 evasion set. Regression tests added.
+- **Repository made public** with CodeQL (extended queries), secret scanning with push protection, Dependabot alerts and security updates, and private vulnerability reporting. Secret-scanning alerts on fixture keys resolved as used in tests.
 - Version 0.2.0 in `package.json`, `mcp.json`, `server.json` and the CLI; descriptions mention the optional judge.
 
 ## 0.1.2 — 2026-11-11

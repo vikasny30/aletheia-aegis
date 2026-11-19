@@ -331,6 +331,30 @@ await check("scorecards name files relative to the package or cwd, never by home
   assert(runGuardEval().casesFile === "eval/cases.jsonl", runGuardEval().casesFile);
 });
 
+// Found by CodeQL (js/redos) and the recheck ReDoS analyzer: inputs that made
+// single regexes backtrack for seconds to minutes. Generous limits so the
+// tests stay stable on a loaded machine; before the fixes these took 3-33+ s.
+await check("redos: a line of asterisks no longer backtracks exponentially", () => {
+  const t = Date.now();
+  ev.evaluate({ response: "Insulin dosing notes:\n" + "*".repeat(60) + "x 10 mg insulin daily, medication dose." });
+  assert(Date.now() - t < 1500, `${Date.now() - t} ms`);
+});
+await check("redos: long adversarial runs stay fast in citation, SSN, routing and crisis patterns", () => {
+  const cases: [string, string][] = [
+    ["case citation", "E'".repeat(40000)],
+    ["author-year", "A'".repeat(40000)],
+    ["case-year", "A&".repeat(40000)],
+    ["labeled SSN", "SSN\t" + "\t".repeat(60000) + "T"],
+    ["routing", "ABA\t#" + "\t".repeat(60000) + "\t#:000000000.RTN000000000"],
+  ];
+  for (const [name, s] of cases) {
+    const t = Date.now(); ev.evaluate({ response: s });
+    assert(Date.now() - t < 1500, `${name}: ${Date.now() - t} ms`);
+  }
+  const t = Date.now(); ev.evaluate({ response: "ok", userPrompt: "letters to my kids ".repeat(10000) });
+  assert(Date.now() - t < 1500, `crisis letters prompt: ${Date.now() - t} ms`);
+});
+
 // Found by an independent review (Gemini 3.5 Flash), confirmed and fixed.
 await check("cache: moving text across the prompt/reply boundary can't reuse another request's verdict", async () => {
   let calls = 0;

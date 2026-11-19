@@ -118,7 +118,7 @@ const DOI_SPACE_RE = /10\.\d{4,9}\s*\/\s*[A-Za-z0-9][^\s]*\.[^\s]*/g;
 const ARXIV_RE = /arxiv:\s?\d{4}\.\d{4,5}(v\d+)?/gi;
 const PMID_RE = /PMID:?\s?\d{7,8}/gi;
 const CASE_CITE_RE =
-  /\b[A-Z][\w.'&-]*(?:\s+[A-Z][\w.'&,-]*){0,5}\s+v\.\s+[A-Z][\w.'&-]*(?:,?\s+[A-Z][\w.'&-]*){0,6},?\s+\d{1,4}\s+(?:U\.S\.|S\.\s?Ct\.|L\.\s?Ed\.(?:\s?2d)?|F\.(?:\s?\d+d|\s?App'x|\s?Supp\.(?:\s?\d+d)?)|[A-Z][a-z]*\.(?:\s?\d+d)?)\s+\d+/g;
+  /\b[A-Z][\w.'&-]{0,40}(?:\s{1,3}[A-Z][\w.'&,-]{0,40}){0,5}\s{1,3}v\.\s{1,3}[A-Z][\w.'&-]{0,40}(?:,?\s{1,3}[A-Z][\w.'&-]{0,40}){0,6},?\s{1,3}\d{1,4}\s+(?:U\.S\.|S\.\s?Ct\.|L\.\s?Ed\.(?:\s?2d)?|F\.(?:\s?\d+d|\s?App'x|\s?Supp\.(?:\s?\d+d)?)|[A-Z][a-z]*\.(?:\s?\d+d)?)\s+\d+/g;
 /** Field-style citation blocks ("Authors: … / Journal: … / Year: …"). */
 const FIELD_CITATION_RE = /\bAuthor(?:s|\(s\))?\s*:\*{0,2}\s*[A-Z][^\n]{2,200}\n[\s\S]{0,400}?\b(Journal|Published\s+in|Publication)\b[^\n]{0,40}:/gi;
 /** APA/Harvard-style author list followed by a year: "Chang, A. M., & Ayas, N. T. (2016)".
@@ -128,11 +128,11 @@ const FIELD_CITATION_RE = /\bAuthor(?:s|\(s\))?\s*:\*{0,2}\s*[A-Z][^\n]{2,200}\n
  *  author group: nested quantifiers over optional separators backtrack
  *  exponentially (18 authors with no year took ~46 s; see test). */
 const AUTHOR_YEAR_RE =
-  /\b[A-Z][A-Za-z'-]+,\s+[A-Z]\.(?:\s?[A-Z]\.){0,2}(?=[A-Za-z.,&'\s-]{0,300}\((?:19|20)\d{2}\))/g;
+  /\b[A-Z][A-Za-z'-]{1,40},\s{1,3}[A-Z]\.(?:\s?[A-Z]\.){0,2}(?=[A-Za-z.,&'\s-]{0,300}\((?:19|20)\d{2}\))/g;
 /** A case name with a year attached ("Smith v. Jones, 2017", "Smith v. Jones (2017)"),
  *  or a LEXIS/Westlaw cite. The reporter-cite pattern above only covers U.S./F.d/S. Ct. */
 const CASE_YEAR_RE =
-  /\b[A-Z][\w.'&-]*(?:\s+[A-Z][\w.'&-]*){0,4}\s+v\.?\s+[A-Z][\w.'&-]*(?:,?\s+[A-Z][\w.'&-]*){0,4},?\s*\(?(?:19|20)\d{2}\)?/g;
+  /\b[A-Z][\w.'&-]{0,40}(?:\s{1,3}[A-Z][\w.'&-]{0,40}){0,4}\s{1,3}v\.?\s{1,3}[A-Z][\w.'&-]{0,40}(?:,?\s{1,3}[A-Z][\w.'&-]{0,40}){0,4},?\s{0,3}\(?(?:19|20)\d{2}\)?/g;
 /** CASE_YEAR_RE only counts in a legal context: "Real Madrid v. Barcelona, 2017"
  *  has the same shape as a case citation. */
 const LEGAL_CONTEXT_RE =
@@ -345,12 +345,12 @@ const CARD_CANDIDATE_RE = /\b(?:\d[ -]?){13,19}\b/g;
  *  version strings and dates rarely match. */
 const SSN_ALT_SEP_RE = /\b(?!000|666|9\d\d)\d{3}([./])(?!00)\d{2}\1(?!0000)\d{4}\b/g;
 /** A labeled SSN with no separators ("SSN: 529417783"). */
-const SSN_LABELED_RE = /\b(?:SSN|SSN#|social\s+security(?:\s+(?:number|no\.?|#))?)\s*(?:is|:|#|=|-)?\s*(?!000|666|9\d\d)(\d{9})\b/gi;
+const SSN_LABELED_RE = /\b(?:SSN#?|social\s{1,3}security(?:\s{1,3}(?:number|no\.?|#))?)\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(?!000|666|9\d\d)(\d{9})\b/gi;
 /** Card numbers in dot-separated groups ("4539.1488.0343.6467"). */
 const CARD_DOTTED_RE = /\b\d{4}\.\d{4,6}\.\d{4,5}(?:\.\d{1,4})?\b/g;
 /** A bank routing number next to its label; validated with the ABA checksum. */
-const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s+(?:number|no\.?|#))?\s*(?:is|:|#|=|-)?\s*(\d{9})\b/gi;
-const ACCOUNT_RE = /\b(?:account|acct)(?:\s+(?:number|no\.?|#))?\s*(?:is|:|#|=|-)?\s*(\d{6,17})\b/i;
+const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{9})\b/gi;
+const ACCOUNT_RE = /\b(?:account|acct)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{6,17})\b/i;
 function abaValid(d: string): boolean {
   const n = d.split("").map(Number);
   return (3 * (n[0] + n[3] + n[6]) + 7 * (n[1] + n[4] + n[7]) + (n[2] + n[5] + n[8])) % 10 === 0;
@@ -635,7 +635,9 @@ const QUOTED_SPAN_RE = /"[^"\n]{1,200}"/g;
 /** A sentence that tells the reader what to do: starts with an imperative verb
  *  (after list markers and markdown), or says "you should/must/need to". */
 const DIRECTIVE_START_RE =
-  /^(?:[-*•>#]|\d+[.)]|\*\*|\s)*(take|stop\s+taking|start\s+taking|give|administer|file|invest|sell|buy|sign|put|move|increase|double|reduce|switch\s+to|get)\b/i;
+  // One way to match each prefix character: `[-*•>#]` and `\*\*` used to overlap,
+  // which made a line of 40+ asterisks backtrack exponentially (CodeQL js/redos).
+  /^(?:[-*•>#\s]|\d+[.)])*(take|stop\s+taking|start\s+taking|give|administer|file|invest|sell|buy|sign|put|move|increase|double|reduce|switch\s+to|get)\b/i;
 const YOU_DIRECTIVE_RE = /\b(you\s+should|you\s+must|you\s+need\s+to|you\s+have\s+to|make\s+sure\s+you|do\s+not\s+wait)\b/i;
 /** Conditional or tentative framing is guidance, not a definitive directive. */
 const TENTATIVE_RE =
@@ -853,7 +855,9 @@ const STRONG_CRISIS_RES: RegExp[] = [
   /\bdon'?t\s+want\s+to\s+wake\s+up\b/i,
   // Farewell notes and "it's time" finality are standard warning signs.
   /\b(goodbye|farewell|suicide)\s+(letters?|notes?)\b/i,
-  /\b(letters?|notes?)\s+(to|for)\s+(my\s+)?\w+[^.!?]{0,80}[.!?]?\s*[^.!?]{0,40}\b(it'?s\s+time|i'?m\s+ready|after\s+i'?m\s+gone|when\s+i'?m\s+gone|won'?t\s+be\s+(here|around))\b/i,
+  // One lazy bounded window (two adjacent windows over the same characters made
+  // every start position try ~3,200 splits: seconds on a long prompt).
+  /\b(letters?|notes?)\s{1,3}(to|for)\s{1,3}(my\s{1,3})?\w{1,30}[^\n]{0,120}?\b(it'?s\s+time|i'?m\s+ready|after\s+i'?m\s+gone|when\s+i'?m\s+gone|won'?t\s+be\s+(here|around))\b/i,
   /\b(after|when|once)\s+i'?m\s+gone\b/i,
   /\b(relieved|happier|better\s+off)\s+if\s+i\s+(disappeared|was\s+gone|were\s+gone|died|wasn'?t\s+here)\b/i,
   /\bdisappear(ed)?\s+for\s+good\b/i,

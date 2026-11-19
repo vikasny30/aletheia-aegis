@@ -2,7 +2,7 @@
 
 ## Reporting
 
-Report security issues privately to Vikas Shivpuriya at vikas.ny30@gmail.com. Do not open a public issue for a vulnerability that could put users at risk.
+Report security issues privately through GitHub's private vulnerability reporting (the repository's Security tab, "Report a vulnerability") or by email to Vikas Shivpuriya at vikas.ny30@gmail.com. Do not open a public issue for a vulnerability that could put users at risk.
 
 ## Scope
 
