@@ -216,6 +216,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 - **S1 cannot tell a real statistic from a confabulated one** when the model attributes it to the source the user named ("According to the 2023 SHED report, 22%…"). It reads as sourced. A recurring held-out miss, documented rather than patched.
 - **Crisis resources are locale-aware** (`locale` param or `AEGIS_LOCALE`): US, GB, IE, CA, AU, NZ, IN. Unknown locales fall back to US resources plus the international directory (findahelpline.com). The numbers live in one place, `src/engine/crisis-resources.ts` — if a helpline changes, fix it there.
 - **S3 has known gaps.** A password stated in prose ("your password is …"), a card number glued to other digits with no separator, a key with a look-alike letter from another script (Cyrillic "к"), base64 or split values, and key formats not in the list all pass. Card numbers must carry a real card-brand prefix, so a Luhn-valid timestamp or order id doesn't block. Values that look like demo text (`abc123def456…`) under a credential key do block: a skip for them was tried and dropped because a real secret could ride on it.
+- **The Crossref check only covers citations S1 recognizes.** It lifts S1 when every citation S1 detected belongs to a confirmed reference. A fabricated reference that S1 can't see in the first place ("Brown, A. B. Invented paper. Nature Fake." with no year, or prose like "Brown and Lee confirmed it") passes with or without the check.
 - **S6 is English-first.** A few French, Spanish and German statements of intent are recognized; other languages, and most slang beyond "kms" and "unalive", are not.
 - **S8 is not covered** until the session auditor exists. Single-response guarding cannot see aggregate harm.
 - **No response text is ever stored** in telemetry or the audit log — only verdicts, finding checks, latency, and response length. Finding evidence is capped at 120 characters, and secrets/PII are masked in evidence, never reproduced raw. The opt-in debug log (`AEGIS_DEBUG_LOG`) is the one exception, and it is off by default. If you turn on the model judge, each reply and prompt is sent to the provider you chose, under that provider's data terms.
@@ -226,7 +227,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (45 checks)
-npm run test:judge   # model judge, reference check and security tests, network stubbed (75 checks)
+npm run test:judge   # model judge, reference check and security tests, network stubbed (77 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)

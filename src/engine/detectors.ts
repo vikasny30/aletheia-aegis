@@ -382,13 +382,11 @@ const CARD_GROUPED_RE = /(?<!\d)(?:\d{4}([ -])\d{4}\1\d{4}\1\d{4}|\d{4}([ -])\d{
  *  Discover, Diners, JCB, UnionPay). A Luhn-valid timestamp or order id
  *  ("1700000086399") starts with a digit no brand uses. */
 function cardBrandOk(d: string): boolean {
-  return /^4(?:\d{12}|\d{15}|\d{18})$/.test(d) ||
-    /^(?:5[1-5]\d{14}|2(?:2(?:2[1-9]|[3-9]\d)|[3-6]\d\d|7(?:[01]\d|20))\d{12})$/.test(d) ||
-    /^3[47]\d{13}$/.test(d) ||
-    /^3(?:0[0-5]|[689]\d)\d{11,16}$/.test(d) ||
-    /^35(?:2[89]|[3-8]\d)\d{12,15}$/.test(d) ||
-    /^6(?:011|5\d\d|4[4-9]\d)\d{12,15}$/.test(d) ||
-    /^62\d{14,17}$/.test(d);
+  // Major industry identifiers 2-6 cover Visa, Mastercard, Amex, Discover,
+  // Diners, JCB, UnionPay, Maestro, Mir, Elo, Dankort and Laser; RuPay also
+  // issues 81/82 and UATP uses 15 digits starting with 1. A 13-digit epoch
+  // timestamp or an id starting with 1, 7, 8 or 9 is not a card.
+  return /^[2-6]/.test(d) || /^8[12]\d{14}$/.test(d) || /^1\d{14}$/.test(d);
 }
 const CARD_DOTTED_RE = /\b\d{4}\.\d{4,6}\.\d{4,5}(?:\.\d{1,4})?\b/g;
 /** A bank routing number next to its label; validated with the ABA checksum. */
@@ -1085,10 +1083,11 @@ const INSTRUCTIONAL_VERB_RE = /\b(ti(?:e|es|ed)|tying|tak(?:e|es|ing)|took|us(?:
  * and it has no dose number. A safety word elsewhere in a sentence clears
  * nothing: "Take all the pills, somewhere safe from interruption" blocks.
  */
-const MEANS_NOUN = String.raw`(?:pills?|tablets?|meds|medications?|bottles?|rope|cord|belt|gun|firearm|ammunition|razors?|blades?|knife|knives|it|them)`;
+const MEANS_ONE = String.raw`(?:(?:bottles?|box(?:es)?|packs?|packets?)\s+of\s+(?:pills|tablets|meds|medications?)|pills?|tablets?|meds|medications?|bottles?|alcohol|drinks|rope|cord|belt|gun|firearm|ammunition|razors?|blades?|knife|knives|it|them)`;
+const MEANS_NOUN = String.raw`${MEANS_ONE}(?:\s*,?\s+(?:and|or)\s+(?:the\s+|your\s+|any\s+)?${MEANS_ONE})?`;
 const MEANS_SAFETY_SPAN_RES: RegExp[] = [
   new RegExp(String.raw`\b(?:(?:take|grab|pick\s+up)\s+(?:the\s+|your\s+|those\s+|these\s+)?${MEANS_NOUN}\s+and\s+)?(?:give|hand|pass|bring)\s+(?:the\s+|your\s+|those\s+|these\s+|all\s+the\s+|any\s+)?(?:extra\s+|spare\s+|old\s+)?${MEANS_NOUN}\s+(?:over\s+)?to\s+(?:someone|somebody|a\s+(?:friend|family\s+member|neighbou?r|pharmacist|pharmacy|doctor)|your\s+(?:friend|partner|parent|mom|mum|dad|sister|brother|roommate|pharmacist|doctor))(?:\s+(?:you\s+trust|who\s+can\s+keep\s+(?:it|them)\s+safe))?`, "gi"),
-  new RegExp(String.raw`\b(?:(?:take|grab|pick\s+up)\s+(?:the\s+|your\s+|those\s+|these\s+)?${MEANS_NOUN}\s+and\s+)?(?:put|move|keep|lock|store|take|get|hide)\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+)?(?:extra\s+|spare\s+)?${MEANS_NOUN}\s+(?:up\s+)?(?:away(?:\s+from\s+(?:you|yourself))?|out\s+of\s+(?:reach|the\s+house|your\s+(?:home|room)|sight)|somewhere\s+safe|in\s+a\s+safe\s+place|to\s+(?:a\s+)?(?:pharmacy|pharmacist))`, "gi"),
+  new RegExp(String.raw`\b(?:(?:take|grab|pick\s+up)\s+(?:the\s+|your\s+|those\s+|these\s+)?${MEANS_NOUN}\s+and\s+)?(?:put|move|keep|lock|store|take|get|hide)\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+)?(?:extra\s+|spare\s+)?${MEANS_NOUN}\s+(?:up\s+)?(?:away(?:\s+from\s+(?:you|yourself))?|out\s+of\s+(?:reach|the\s+house|your\s+(?:home|room)|sight)|somewhere\s+(?:safe|out\s+of\s+(?:reach|sight)|else|you\s+can'?t\s+(?:easily\s+)?(?:get|reach)\s+(?:it|them))|in\s+a\s+safe\s+place|(?:with|at)\s+a\s+(?:friend|neighbou?r|family\s+member)(?:'s(?:\s+(?:place|house))?)?|to\s+(?:a\s+)?(?:pharmacy|pharmacist))`, "gi"),
   new RegExp(String.raw`\b(?:get\s+rid\s+of|remove|dispose\s+of|flush|throw\s+(?:out|away))\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+|all\s+(?:the\s+|your\s+)?)(?:extra\s+|spare\s+|old\s+)?(?:pills?|tablets?|meds|medications?|rope|cord|belt|gun|firearm|ammunition|razors?|blades?|knife|knives)\b`, "gi"),
   /\b(?:step|move|walk|get)\s+away\s+from\s+(?:it|them|the\s+\w+)/gi,
 ];
@@ -1096,6 +1095,10 @@ const MEANS_SAFETY_SPAN_RES: RegExp[] = [
  *  the main clause, which starts with the help action, must be clean. */
 const CONDITIONAL_HELP_RE =
   /^\W*(?:if|when|whenever)\s+(?:you(?:'re|\s+are)\s+(?:thinking|considering|tempted|feeling\s+(?:like|the\s+urge)|having\s+thoughts)\b|you(?:'ve|\s+have)\s+already\b|you\s+feel\s+(?:like|unsafe|the\s+urge)\b|[^.!?\n,;]{0,80}\bis\s+a\s+risk\b)[^.!?\n,;]{0,120},\s*(?=(?:please\s+)?(?:call|text|contact|reach\s+out|go\s+to|tell|talk\s+to|get\s+help|step\s+away|move\s+away|put|lock|give|hand|move|keep|get\s+rid)\b)/i;
+/** A spelled-out quantity is a dose as much as a digit is ("except twenty; swallow those"). */
+const SPELLED_QUANTITY_RE = /\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|hundred|dozen|handful|half\s+the\s+bottle)\b/i;
+/** Ordinary uses of method verbs in support replies. */
+const BENIGN_VERB_PHRASE_RE = /\b(?:take|taking|took)\s+(?:a\s+(?:few\s+)?(?:deep\s+|slow\s+)?breaths?|care|a\s+walk|a\s+moment|your\s+time|it\s+(?:slow|one\s+step))\b|\b(?:use|using)\s+(?:the\s+)?(?:988|lifeline|crisis\s+line|text\s+line|hotline|chat)\b|\b(?:run|running)\s+(?:a\s+bath|water)\b|\bdrink\s+(?:some\s+)?water\b/gi;
 /** A claim that the method works is never safety advice, whatever else the
  *  sentence says ("…, call 988 and it will be quick"). */
 const METHOD_EFFICACY_RE = /\b(?:quick(?:ly|est|er)?|painless(?:ly)?|effective(?:ly)?|it\s+works|works\s+(?:best|fast)|fastest|best\s+way|surest|lethal)\b/i;
@@ -1117,12 +1120,18 @@ const METHOD_DIRECTED_NEGATION_RE =
 function clearedByMeansSafety(sentence: string, crisisContext: boolean): boolean {
   // Phone numbers (988, 1-800-…) don't count as a number here; a dose does.
   if (/\d/.test(sentence.replace(/\d{3,}|\d+(?:-\d+){2,}/g, ""))) return false;
-  if (METHOD_EFFICACY_RE.test(sentence)) return false;
+  if (METHOD_EFFICACY_RE.test(sentence) || SPELLED_QUANTITY_RE.test(sentence)) return false;
   let rest = sentence.replace(CONDITIONAL_HELP_RE, " ");
   for (const re of MEANS_SAFETY_SPAN_RES) rest = rest.replace(re, " ");
   if (rest === sentence) return false;
   const verbs = crisisContext ? INSTRUCTIONAL_VERB_RE : BASE_INSTRUCTIONAL_VERB_RE;
-  return !((METHOD_NOUNS_RE.test(rest) || REMAINDER_METHOD_NOUNS_RE.test(rest)) && verbs.test(rest));
+  // What's left may hold no method verb at all: "Lock the gun away, then take
+  // it out and shoot yourself" and "Give the knife to someone you trust and
+  // cut deeper next time" carry the method on a pronoun or no noun at all.
+  // Ordinary phrases that use these verbs ("take a deep breath") are removed first.
+  rest = rest.replace(BENIGN_VERB_PHRASE_RE, " ");
+  if (verbs.test(rest) || BASE_INSTRUCTIONAL_VERB_RE.test(rest)) return false;
+  return true;
 }
 
 
