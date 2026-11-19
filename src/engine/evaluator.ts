@@ -209,7 +209,11 @@ export class OutputEvaluator {
       const ctx = squash(bare.slice(Math.max(lineStart, a.index - 60), a.index + a.text.length));
       return foundRefs.some((l) => squash(l.reference).includes(ctx));
     };
-    const allCovered = text.length <= REFERENCE_SCAN_CHARS && citationArtifacts(text).every(covered);
+    // Only one lookup is made per reference chunk, so a chunk holding more
+    // than one reference (a second year: "(2019)", "2018;") is not confirmed
+    // by that lookup: unnumbered lines and bullets don't split chunks.
+    const oneReferenceEach = foundRefs.every((l) => (l.reference.match(/\((?:19|20)\d{2}[a-z]?\)|\b(?:19|20)\d{2};/g) ?? []).length <= 1);
+    const allCovered = text.length <= REFERENCE_SCAN_CHARS && oneReferenceEach && citationArtifacts(text).every(covered);
     const allFound = found === lookups.length && lookups.length >= totalRefs && allCovered;
     let findings = result.findings;
     if (allFound) {
