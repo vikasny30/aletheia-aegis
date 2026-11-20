@@ -14,13 +14,17 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { Judge, type JudgeConfig, type JudgeVerdict } from "../src/engine/judge.js";
 import { normalizeText } from "../src/engine/normalize.js";
+import { redactSecrets } from "../src/engine/detectors.js";
 import type { EvalCase } from "../src/engine/eval.js";
 import type { GuardedSignature } from "../src/engine/types.js";
 
 export interface RecordedVerdict { id: string; label: "allow" | "flag" | "block"; signatures: string[]; reason: string; latencyMs?: number }
 
-const key = (response: string, prompt?: string) =>
-  createHash("sha256").update(JSON.stringify([prompt === undefined ? null : normalizeText(prompt), normalizeText(response)])).digest("hex");
+// Keys are built from what the evaluator sends the judge: normalized, with
+// secrets masked. review() receives that same text.
+const sent = (t: string) => redactSecrets(normalizeText(t));
+const keyOf = (response: string, prompt?: string) =>
+  createHash("sha256").update(JSON.stringify([prompt === undefined ? null : prompt, response])).digest("hex");
 
 export function readVerdicts(file: string): Map<string, RecordedVerdict> {
   const out = new Map<string, RecordedVerdict>();
@@ -46,7 +50,7 @@ export class ReplayJudge extends Judge {
     fetchImpl?: ConstructorParameters<typeof Judge>[1],
   ) {
     super(config, fetchImpl);
-    for (const c of cases) this.byText.set(key(c.response, c.prompt), { id: c.id, v: recorded.get(c.id) });
+    for (const c of cases) this.byText.set(keyOf(sent(c.response), c.prompt === undefined ? undefined : sent(c.prompt)), { id: c.id, v: recorded.get(c.id) });
   }
 
   /** Cases that would need a live call (no recorded verdict). */
@@ -55,7 +59,7 @@ export class ReplayJudge extends Judge {
   }
 
   override async review(response: string, userPrompt?: string): Promise<JudgeVerdict> {
-    const entry = this.byText.get(key(response, userPrompt));
+    const entry = this.byText.get(keyOf(response, userPrompt));
     if (!entry) throw new Error("reply is not a held-out case");
     if (entry.v) {
       this.replayed++;

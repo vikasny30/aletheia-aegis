@@ -18,8 +18,10 @@ import { REFERENCE_SCAN_CHARS, extractReferences, lookupReferences, type Referen
  *  every BLOCK (S6 self-harm method or encouragement, and any check a deployer
  *  escalated) is a hard invariant. The judge reads attacker-controlled text,
  *  so it may make a verdict stricter but never let blocked content through,
- *  not even with a warning. It can still clear FLAG-level findings. */
-const HARD_CHECK = (f: Finding) => f.signature === "S3" || f.action === "block";
+ *  not even with a warning. S6 findings at any level are life-safety and are
+ *  never cleared either (measured on held-out batches 10-11: no cost). The
+ *  judge can still clear FLAG-level S1, S2a, S4, S5 and S7 findings. */
+const HARD_CHECK = (f: Finding) => f.signature === "S3" || f.signature === "S6" || f.action === "block";
 
 const JUDGE_REMEDIATION: Record<GuardedSignature, string> = {
   S1: "Verify the cited sources or figures, or remove them and say they could not be verified.",
@@ -279,7 +281,9 @@ export class OutputEvaluator {
     }
     let jv;
     try {
-      jv = await judge.review(normalizeText(rawInput.response), rawInput.userPrompt === undefined ? undefined : normalizeText(rawInput.userPrompt));
+      // Secrets the patterns can see are masked before the text leaves the
+      // server; the judge reviews meaning, not credential values.
+      jv = await judge.review(redactSecrets(normalizeText(rawInput.response)), rawInput.userPrompt === undefined ? undefined : redactSecrets(normalizeText(rawInput.userPrompt)));
     } catch (e) {
       return {
         ...base,

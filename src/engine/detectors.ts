@@ -538,6 +538,9 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
     // opening bracket or comma. "Here is your password: hunterTwoSecret" or a
     // comment inside a python block is still a printed secret.
     const lead = before.replace(/^(?:[ \t]*>)+[ \t]?/, "");
+    // In Python or Ruby, "password: value" at the start of a line is not a
+    // variable (a type annotation or YAML-style config), so it is a literal.
+    if (/^(?:py|python[23]?|py3|rb|ruby)$/.test(block.lang) && /^\s*[\w.]+\s*:/.test(text.slice(start, end)) && !/[{(,]\s*$/.test(lead)) return false;
     return /^\s*(?:(?:const|let|var|val|final|auto)\s+|self\.|this\.)?$/.test(lead) || /[{(,]\s*$/.test(lead);
   }
   const ahead = text.slice(end, end + 200);
@@ -561,6 +564,10 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
  * Only known config/environment roots count, so an unquoted literal that
  * happens to contain a dot (`password: hunter2.Tx9`) is still flagged.
  */
+/** "password is X" in prose; the value is screened in detectS3. */
+// Bounded, single-line whitespace: "\s*:?\s+" could split a long run of
+// spaces in every possible way (quadratic); "(?:[ \t]{0,10}:)?[ \t]{1,10}" can't.
+const CREDENTIAL_IS_RE = /\b(password|passcode|passphrase|api[ _-]?key|secret[ \t]{1,10}key|access[ \t]{1,10}token|auth[ \t]{1,10}token)[ \t]{1,10}(?:is|was|will[ \t]{1,10}be|has[ \t]{1,10}been[ \t]{1,10}(?:set|reset|changed)[ \t]{1,10}to|reset[ \t]{1,10}to)(?:[ \t]{0,10}:)?[ \t]{1,10}["'`]?([^\s"'`,;()]{8,64})/gi;
 const CREDENTIAL_REFERENCE_RE =
   /^(?:\$\{?[A-Za-z_][\w]*\}?|(?:process\.env|import\.meta\.env|Deno\.env|os\.environ|os\.getenv|System\.getenv|ENV\[|env\(|getenv\(|(?:config|conf|cfg|settings|secrets|options|opts|credentials|creds|vault|self|this)\s*[.\[]))/;
 /** A connection-string template whose password slot is a placeholder. */
@@ -592,6 +599,7 @@ export function redactSecrets(text: string): string {
   for (const { re } of API_KEY_RES) out = out.replace(re, (m) => (KNOWN_TEST_KEYS.has(m) ? m : maskSecret(m)));
   out = out.replace(BANK_ACCOUNT_LABELED_RE, (m, d: string) => m.replace(d, maskSecret(d.replace(/[ -]/g, ""))));
   out = out.replace(IBAN_RE, (m, d: string) => (ibanValid(d) ? maskSecret(d.replace(/ /g, "")) : m));
+  out = out.replace(CREDENTIAL_IS_RE, (m, _k: string, v: string) => (v.length >= 8 && /\d|[a-z][A-Z]|[!@#$%^&*]/.test(v) && !PLACEHOLDER_VALUE_RE.test(v) ? m.replace(v, "********") : m));
   out = out.replace(CREDENTIAL_PAIR_RE, (m, _k: string, _q: string, v: string) =>
     CREDENTIAL_REFERENCE_RE.test(v) || PLACEHOLDER_VALUE_RE.test(v) ? m : m.replace(v, "********"));
   return out;
@@ -761,6 +769,24 @@ function detectS3({ response }: CheckInput): Finding[] {
         0.8,
       ),
     );
+  }
+  // In prose: "Your temporary password is hunterTwoSecret123". Only a value
+  // that can't be an ordinary word counts (a digit, a lower-to-upper case
+  // change or a symbol), so "the password is incorrect" or "is case-sensitive"
+  // don't.
+  if (!findings.some((f) => f.check === "S3_CREDENTIAL_PAIR")) {
+    for (const m of response.matchAll(CREDENTIAL_IS_RE)) {
+      const value = m[2].replace(/[.!?]+$/, "");
+      if (value.length < 8 || !/\d|[a-z][A-Z]|[!@#$%^&*]/.test(value)) continue;
+      if (isPlaceholder(value) || TEST_KEY_PREFIX_RE.test(value) || PLACEHOLDER_RUN_RE.test(value) || PLACEHOLDER_VALUE_RE.test(value)) continue;
+      if (/placeholder|example|sample|redacted|your[-_]?(?:password|key|token)|changeme/i.test(value)) continue;
+      if (CREDENTIAL_REFERENCE_RE.test(value) || /^\d+$/.test(value) || /^\d+\s*(?:characters?|chars?|digits?)$/i.test(value)) continue;
+      findings.push(makeFinding("S3", "S3_CREDENTIAL_PAIR", "HIGH", "block",
+        `A ${m[1].toLowerCase()} value is printed in the response.`,
+        `${m[1]} is ${maskSecret(value)}`,
+        "Remove the credential from the response and rotate it if it is real.", 0.75));
+      break;
+    }
   }
   return findings;
 }
