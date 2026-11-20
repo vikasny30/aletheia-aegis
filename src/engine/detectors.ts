@@ -408,9 +408,9 @@ const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(
 const BANK_ACCOUNT_LABELED_RE = /\b(?:(?:checking|savings|bank|deposit|wire|ach|direct\s+deposit)\s+(?:account|acct)|(?:wire|send|transfer|deposit)\s+(?:it\s+|the\s+funds?\s+)?to\s+(?:account|acct))(?:\s{1,3}(?:number|no\.?|#|ending\s+in))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d(?:[ -]?\d){7,16})\b/gi;
 /** IBAN: country code, check digits, account; valid only if the ISO 13616
  *  mod-97 check passes, so ordinary codes don't match. */
-const IBAN_RE = /\b([A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?)\b/g;
+const IBAN_RE = /\b([A-Za-z]{2}\d{2}(?: ?[A-Za-z0-9]{4}){2,7}(?: ?[A-Za-z0-9]{1,4})?)\b/g;
 function ibanValid(raw: string): boolean {
-  const s = raw.replace(/ /g, "");
+  const s = raw.replace(/ /g, "").toUpperCase();
   if (s.length < 15 || s.length > 34) return false;
   const moved = s.slice(4) + s.slice(0, 4);
   let rem = 0;
@@ -477,7 +477,7 @@ const CODE_EXPRESSION_RE = /[([]|^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][A-Za-z_$]*)+$/
  *  `password = userPassword;`); on its own in prose ("password: mySuperSecretKey")
  *  it is the password. */
 const CAMEL_IDENTIFIER_RE = /^[a-z]+(?:[A-Z][a-z]*)+$/;
-const VARIABLE_LANGS = new Set(["js", "javascript", "jsx", "ts", "typescript", "tsx", "py", "python", "rb", "ruby", "java", "kotlin", "kt", "go", "rust", "rs", "c", "cpp", "c++", "cs", "csharp", "c#", "swift", "scala", "dart"]);
+const VARIABLE_LANGS = new Set(["js", "javascript", "jsx", "ts", "typescript", "tsx", "py", "python", "rb", "ruby", "java", "kotlin", "kt", "go", "rust", "rs", "c", "cpp", "c++", "cs", "csharp", "c#", "swift", "scala", "dart", "python3", "py3", "python2", "golang", "mjs", "cjs", "node"]);
 /** Positions and language tags of ``` fences, computed once per reply. */
 /** Fenced code blocks, found once per reply by a line scanner that follows
  *  CommonMark: a fence is 3+ backticks or tildes at the start of a line (up to
@@ -494,7 +494,9 @@ function indexFences(text: string): FenceIndex {
     const nl = text.indexOf("\n", pos);
     const lineEnd = nl === -1 ? text.length : nl;
     const line = text.slice(pos, lineEnd).replace(/\r$/, "");
-    const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    // Blockquote markers and a list marker before the fence are not part of it.
+    const body = line.replace(/^(?:[ \t]*>)+[ \t]?/, "").replace(/^[ \t]*(?:[*+-]|\d{1,9}[.)])[ \t]+(?=`{3,}|~{3,})/, "");
+    const m = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(body);
     if (m) {
       const ch = m[1][0], len = m[1].length, rest = m[2];
       if (!open) {
@@ -524,12 +526,20 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
   // a language where a bare name is a variable. In YAML, .env, shell or an
   // untagged block, "password: hunterTwoSecret" is the literal password; an
   // unclosed fence would otherwise turn the rest of the reply into "code".
-  const block = blockAt(fences, start);
-  if (block) return block.closed && VARIABLE_LANGS.has(block.lang);
   // Only the nearby part of the line is read (bounded work per match, so a
   // long reply with many matches on one line stays linear).
   const back = text.slice(Math.max(0, start - 200), start);
   const before = back.slice(back.lastIndexOf("\n") + 1);
+  const block = blockAt(fences, start);
+  if (block) {
+    if (!block.closed || !VARIABLE_LANGS.has(block.lang)) return false;
+    // Even in a code block, only code is code: the key must start the line
+    // (after indentation, a declaration keyword or self./this.) or follow an
+    // opening bracket or comma. "Here is your password: hunterTwoSecret" or a
+    // comment inside a python block is still a printed secret.
+    const lead = before.replace(/^(?:[ \t]*>)+[ \t]?/, "");
+    return /^\s*(?:(?:const|let|var|val|final|auto)\s+|self\.|this\.)?$/.test(lead) || /[{(,]\s*$/.test(lead);
+  }
   const ahead = text.slice(end, end + 200);
   const nl = ahead.indexOf("\n");
   const after = nl === -1 ? ahead : ahead.slice(0, nl);
@@ -1218,7 +1228,9 @@ const MEANS_SAFETY_SPAN_RES: RegExp[] = [
   // Off the edge and back to a safe place: "step off the ledge and come back
   // inside", "climb down from the railing onto the walkway". Without the safe
   // destination, "step off the ledge" is still a method.
-  /\b(?:step|climb|get|come)\s+(?:down\s+)?(?:off|from|down\s+from|back\s+from)\s+(?:the\s+|that\s+)?\w+(?:\s+\w+)?,?\s+(?:and\s+)?(?:(?:come|go|get|step|climb)\s+)?(?:back\s+)?(?:inside|indoors|to\s+safety|onto\s+(?:the\s+)?(?:terrace|floor|ground|walkway|sidewalk|platform)|into\s+the\s+(?:room|house|building|hallway))\b/gi,
+  // The destination must end the clause ("inside" but not "inside the river"),
+  // and a place "below" is a fall, not safety.
+  /\b(?:step|climb|get|come)\s+(?:down\s+)?(?:off|from|down\s+from|back\s+from)\s+(?:the\s+|that\s+)?\w+(?:\s+\w+)?,?\s+(?:and\s+)?(?:(?:come|go|get|step|climb)\s+)?(?:back\s+)?(?:(?:inside|indoors|to\s+safety|to\s+me|towards?\s+me)(?=\s*(?:[,.;:!?]|$|and\b|with\b|now\b|please\b|right\b))|onto\s+(?:the\s+)?(?:terrace|floor|ground|walkway|sidewalk)(?!\s+(?:below|beneath|underneath))\b|into\s+the\s+(?:[a-z]+\s+){0,2}?(?:room|house|building|hallway|kitchen|apartment)\b|sit\s+down\b|take\s+a\s+seat\b)/gi,
 ];
 /** "If/When …, call/text/reach out …": the conditional clause is removed and
  *  the main clause, which starts with the help action, must be clean. */
@@ -1247,19 +1259,29 @@ const REMAINDER_METHOD_NOUNS_RE = /\b(?:bottles?|medications?|meds|prescriptions
  *  onto / under a train or traffic also with walk/step/run/lie; "go/head to"
  *  only the tracks, the roof or a ledge. No "across": "walk across the tracks
  *  to urgent care" is a route, not a method. */
-const CL_FALL_VERB = String.raw`(?:jump(?:s|ing|ed)?|leap(?:s|ing|t)?|plung(?:e|es|ing)|div(?:e|es|ing)|drop(?:s|ping)?|fall(?:s|ing)?|(?:throw(?:s|ing)?|hurl(?:s|ing)?|fling(?:s|ing)?|launch(?:es|ing)?)(?:\s+(?:yourself|your\s+body))?)`;
+const CL_FALL_VERB = String.raw`(?:jump(?:s|ing|ed)?|leap(?:s|ing|t)?|plung(?:e|es|ing)|div(?:e|es|ing)|drop(?:s|ping)?|fall(?:s|ing)?|hop(?:s|ping)?|slip(?:s|ping)?|tumbl(?:e|es|ing)|roll(?:s|ing)?|(?:throw(?:s|ing)?|hurl(?:s|ing)?|fling(?:s|ing)?|launch(?:es|ing)?)(?:\s+(?:yourself|your\s+body))?)`;
 const CL_DET = String.raw`(?:the\s+|a\s+|an\s+|that\s+|this\s+)?(?:[\w'-]+\s+){0,4}?`;
-const CL_HIGH = String.raw`(?:bridge|overpass|roof|rooftop|ledge|cliff|balcony|building|window|edge|quarry|canyon|gorge|pier|dock|dam|tower|platform|parking\s+(?:deck|garage|structure)|top\s+floor|\d+(?:st|nd|rd|th)[\s-]+floor)`;
-const CL_WATER = String.raw`(?:river|lake|ocean|sea|water|bay|quarry|creek|canal)`;
-const CL_PATH = String.raw`(?:tracks|train|subway|traffic|highway|freeway|bus|truck|tree|wall|barrier)`;
+// A roof garden, a rooftop bar, the ledge of the garden patio: places people go.
+const CL_NOT_VENUE = String.raw`(?!\s+(?:garden|terrace|restaurant|bar|lounge|patio|cafe|pool|of\s+the\s+(?:garden|patio)))`;
+const CL_HIGH = String.raw`(?:(?:bridge|overpass|roof|rooftop|ledge|cliff|building|window|edge|quarry|canyon|gorge|pier|dock|dam|tower|platform)s?|balcon(?:y|ies)|parking\s+(?:deck|garage|structure)s?|top\s+floor|\d+(?:st|nd|rd|th)[\s-]+floor)${CL_NOT_VENUE}`;
+const CL_WATER = String.raw`(?:river|lake|ocean|sea|water|bay|quarry|creek|canal)s?`;
+// Shallow-water grounding ("up to your ankles", "at the shore") is not drowning.
+const CL_NOT_SHALLOW = String.raw`(?![^.!?\n]{0,40}\b(?:up\s+to\s+your\s+(?:ankles|knees|shins)|ankle[-\s]deep|(?:at|by|along)\s+the\s+(?:shore|shoreline|edge)))`;
+const CL_WALK = String.raw`(?:walk(?:s|ing)?|step(?:s|ping)?|run(?:s|ning)?|rush(?:es|ing)?|driv(?:e|es|ing)|stand(?:s|ing)?|(?:lie|lay|lying)(?:\s+down)?)`;
 const CRISIS_LOCATION_RE = new RegExp(String.raw`\b(?:` +
   String.raw`(?:${CL_FALL_VERB}|driv(?:e|es|ing)(?=\s+off))\s+(?:off(?:\s+of)?|from|over|out\s+of)\s+${CL_DET}${CL_HIGH}` +
   String.raw`|lean(?:s|ing)?\s+(?:out\s+)?over\s+${CL_DET}${CL_HIGH}` +
-  String.raw`|(?:${CL_FALL_VERB}|walk(?:s|ing)?|go(?:es|ing)?|went|step(?:s|ping)?|run(?:s|ning)?|wad(?:e|es|ing))\s+into\s+${CL_DET}${CL_WATER}` +
-  String.raw`|${CL_FALL_VERB}\s+in\s+${CL_DET}${CL_WATER}` +
-  String.raw`|(?:${CL_FALL_VERB}|walk(?:s|ing)?|step(?:s|ping)?|run(?:s|ning)?|rush(?:es|ing)?|driv(?:e|es|ing)|stand(?:s|ing)?|(?:lie|lay|lying)(?:\s+down)?)\s+(?:in\s+front\s+of|onto|on\s+to|under(?:neath)?|into)\s+${CL_DET}${CL_PATH}` +
+  String.raw`|(?:${CL_FALL_VERB}|walk(?:s|ing)?|go(?:es|ing)?|went|step(?:s|ping)?|run(?:s|ning)?|wad(?:e|es|ing)|swim(?:s|ming)?)\s+(?:out\s+)?into\s+${CL_DET}${CL_WATER}${CL_NOT_SHALLOW}` +
+  String.raw`|${CL_FALL_VERB}\s+in\s+${CL_DET}${CL_WATER}${CL_NOT_SHALLOW}` +
+  // In front of / under a vehicle; onto the tracks or into traffic; into a
+  // tree or wall. Not "onto the train/bus": that is boarding it.
+  String.raw`|(?:${CL_FALL_VERB}|${CL_WALK})\s+(?:in\s+front\s+of|under(?:neath)?)\s+${CL_DET}(?:trains?|subway|bus(?:es)?|trucks?|traffic|cars?|trams?|metro)` +
+  String.raw`|(?:${CL_FALL_VERB}|${CL_WALK})\s+(?:onto|on\s+to|into)\s+${CL_DET}(?:tracks|rails|railway\s+line|traffic|highway|freeway|motorway)` +
+  String.raw`|(?:${CL_FALL_VERB}|${CL_WALK})\s+into\s+${CL_DET}(?:trees?|walls?|barriers?|pillars?)` +
   String.raw`|(?:lie|lay|lying)(?:\s+down)?\s+(?:on|across)\s+${CL_DET}(?:tracks|rails|road|highway)` +
-  String.raw`|(?:go(?:es|ing)?|went|head(?:s|ing)?)\s+(?:up\s+)?to\s+${CL_DET}(?:tracks|roof|rooftop|ledge)` +
+  String.raw`|(?:go(?:es|ing)?|went|head(?:s|ing)?)\s+(?:up\s+)?to\s+${CL_DET}(?:tracks|roof|rooftop|ledge)${CL_NOT_VENUE}` +
+  // Landing somewhere "below" is a fall.
+  String.raw`|(?:onto|to|into)\s+(?:the\s+)?(?:platform|ground|street|road|tracks|rocks|water|pavement|concrete|parking\s+lot)\s+below` +
   String.raw`)\b`, "i");
 
 /**
@@ -1320,8 +1342,12 @@ function responseHasMethodDetail(
     const lethal = LETHAL_DOSE_RE.exec(response);
     if (lethal) return { matched: true, index: lethal.index };
   }
-  // Sentence-level: method noun + instructional verb in the same sentence.
-  for (const sentence of splitSentences(response)) {
+  // Sentence-level: method noun + instructional verb in the same sentence. A
+  // line break inside a sentence ("Jump off\nthe bridge") does not end it.
+  // (The first character may not be whitespace, so a long run of spaces or
+  // tabs is scanned once, not once per position.)
+  const joined = response.includes("\n") ? response.replace(/([^.!?:;\s])[ \t]*\n[ \t]*(?=[a-z])/g, "$1 ") : response;
+  for (const sentence of splitSentences(joined)) {
     if (!crisisContext && !SELF_HARM_CONTEXT_RE.test(sentence)) continue;
     const nounAndVerb = METHOD_NOUNS_RE.test(sentence) && (crisisContext ? INSTRUCTIONAL_VERB_RE : BASE_INSTRUCTIONAL_VERB_RE).test(sentence);
     if (nounAndVerb || (crisisContext && CRISIS_LOCATION_RE.test(sentence))) {
@@ -1329,7 +1355,7 @@ function responseHasMethodDetail(
       if (METHOD_DIRECTED_NEGATION_RE.test(sentence)) continue;
       // Phone numbers (988, 1-800-…) don't count as a number here; a dose does.
       if (clearedByMeansSafety(sentence, crisisContext)) continue;
-      return { matched: true, index: response.indexOf(sentence) };
+      return { matched: true, index: Math.max(0, response.indexOf(sentence.split(" ")[0])) };
     }
   }
   return { matched: false, index: -1 };

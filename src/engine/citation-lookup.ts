@@ -84,16 +84,12 @@ export function matches(reference: string, item: any): boolean {
   // Need" vs "Attention Is All You Need: The Transformer …"): the claimed
   // title must then be almost entirely inside the real one.
   const claimedTokens = claimed ? tokens(claimed) : new Set<string>();
-  if (claimedTokens.size >= 2) {
-    // Most of the claimed title is in the real one, AND it covers most of the
-    // real main title (before any subtitle): a short invented title built from
-    // words in a long subtitle ("The Transformer Architecture") is not a match.
-    const real = tokens(realTitle);
-    const main = tokens(realTitle.split(/[:?]|\s[-–—]\s/)[0]);
-    const inReal = [...claimedTokens].filter((t) => real.has(t)).length / claimedTokens.size;
-    const coversMain = main.size > 0 && [...main].filter((t) => claimedTokens.has(t)).length / main.size >= 0.6;
-    if (inReal >= 0.8 && coversMain) return true;
-  }
+  // A citation often drops a subtitle Crossref records ("Attention Is All You
+  // Need" for "Attention Is All You Need: The Transformer …"). The claimed
+  // title must then be the real title's opening words, in order: an invented
+  // title built from scattered words ("The Transformer Architecture", "BERT
+  // Transformers") is not.
+  if (claimed && claimedTokens.size >= 1 && isTitlePrefix(claimed, realTitle)) return true;
   if (!(year && refYear) || overlap(container) < 0.75) return false;
   const containerTokens = tokens(container);
   // The journal stands in only when the reply gives no title of its own: a
@@ -117,13 +113,26 @@ function claimedTitle(reference: string): string | null {
   const labeled = reference.match(/\bTitle\s*:\s*(.*?)(?=\b(?:Authors?|Journal|Year|Publication\s+Year|Summary|Key\s+Finding|Findings?)\s*:|$)/i);
   if (labeled) return labeled[1];
   if (/\b(?:Authors?|Journal)\s*:/i.test(reference)) return "";
-  // A quoted title (MLA, IEEE, Chicago): 'Surname, Given. "Title." Journal'.
-  const quoted = reference.match(/["“]([^"”]{8,300}?)[,.]?["”]/);
-  if (quoted) return quoted[1];
+  // A quoted title (MLA, IEEE, Chicago, single-quoted UK style): the longest
+  // quoted segment, so a short quoted annotation ("landmark paper") isn't taken.
+  const quotes = [
+    ...[...reference.matchAll(/["“]([^"”\n]{8,300}?)[,.]?["”]/g)].map((m) => m[1]),
+    ...[...reference.matchAll(/(?:^|[\s(\[])['‘]([^'’\n]{8,300}?)[,.]?['’](?=[\s,.;)\]]|$)/g)].map((m) => m[1]),
+  ];
+  if (quotes.length) return quotes.reduce((a, b) => (b.length > a.length ? b : a));
   const apa = reference.match(/\(\s*(?:19|20)\d{2}[a-z]?\s*\)\s*[.,:]?\s*([^.?!]{10,300}[.?!])/);
   if (apa) return apa[1];
   const vancouver = reference.match(/^\s*(?:\d{1,3}[.)]\s*)?(?:[A-Z][A-Za-z'-]+\s+[A-Z]{1,3}(?:,\s*|\s+and\s+|\s*&\s*))*[A-Z][A-Za-z'-]+\s+[A-Z]{1,3}(?:,?\s+et\s+al)?\.\s+([^.?!]{10,300}[.?!])/);
   return vancouver ? vancouver[1] : null;
+}
+
+function titleWords(s: string): string[] {
+  const w = s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  return w[0] === "the" || w[0] === "a" || w[0] === "an" ? w.slice(1) : w;
+}
+function isTitlePrefix(claimed: string, real: string): boolean {
+  const c = titleWords(claimed), r = titleWords(real);
+  return c.length >= 2 && c.length <= r.length && c.every((w, i) => w === r[i]);
 }
 
 /** The searchable part of an entry: drop a heading before "Authors:", field
