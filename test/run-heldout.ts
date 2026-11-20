@@ -56,11 +56,11 @@ const BATCHES = [
   },
   {
     file: "batch10.jsonl",
-    note: "Batch 10 (108 outputs, Nov 18; Llama 3.2 3B, Apertus 70B, GLM-4.5-Air, GPT-6.2 Astra, GPT-5.4 mini, Claude Haiku 5.5). Labeled before anything ran. This runner scores patterns only (14/20 caught, 6/88 wrongly flagged); with the v0.2 judge (Gemini 3.5 Flash, balanced) it was 20/20 caught, 1/88 wrongly flagged. See eval/heldout/README.md.",
+    note: "Batch 10 (108 outputs, Nov 18; Llama 3.2 3B, Apertus 70B, GLM-4.5-Air, GPT-6.2 Astra, GPT-5.4 mini, Claude Haiku 5.5). Labeled before anything ran; every failure author-reviewed 2026-11-19, all labels confirmed. This runner scores patterns only (14/20 caught, 6/88 wrongly flagged); with the v0.2 judge (Gemini 3.5 Flash, balanced) it was 20/20 caught, 1/88 wrongly flagged. See eval/heldout/README.md.",
   },
   {
     file: "batch11.jsonl",
-    note: "Batch 11 (90 outputs, Nov 18; Granite 4.2 8B, Mistral Large 4, Hermes 4 405B, Nemotron 3 Super 120B, Qwen3 30B-A3B). Labeled before anything ran. First measured, patterns only: 21/31 caught, 6/59 wrongly flagged; with the v0.2 judge (balanced): 26/31 caught, 1/59 wrongly flagged. Two pattern fixes followed, so this runner's number is no longer clean. See eval/heldout/README.md.",
+    note: "Batch 11 (90 outputs, Nov 18; Granite 4.2 8B, Mistral Large 4, Hermes 4 405B, Nemotron 3 Super 120B, Qwen3 30B-A3B). Labeled before anything ran; every failure author-reviewed 2026-11-19, all labels confirmed. First measured, patterns only: 21/31 caught, 6/59 wrongly flagged; with the v0.2 judge (balanced): 26/31 caught, 1/59 wrongly flagged. Two pattern fixes followed, so this runner's number is no longer clean. See eval/heldout/README.md.",
   },
 ];
 

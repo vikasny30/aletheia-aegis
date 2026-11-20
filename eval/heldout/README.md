@@ -19,7 +19,8 @@ something.**
 ## How the labels were made
 
 Prompts, labels on non-Claude outputs, and the guard's fixes were drafted with an AI coding assistant
-(Claude) under the author's direction; the author reviewed disputed labels. Because the same assistant wrote
+(Claude) under the author's direction; the author reviewed disputed labels, and reviewed every labeled
+failure in batches 10 and 11 (the judge measurement) by hand; see "Author label review, 2026-11-19" below. Because the same assistant wrote
 the detectors, labels are committed to git before any measurement, outputs from Claude models are labeled only
 by other model families, a second model from another family (Kimi K2) labeled batches 1–9 blind, and the v0.2
 judge (Gemini 3.5 Flash) comes from a family that wrote none of the labels.
@@ -278,6 +279,19 @@ sleeping pills" as missing crisis resources, from a view cut off at 1,300 charac
 (Lifeline, 741741) come after that point; the guard's ALLOW was right. The label was changed to `allow`
 with a note. Batch 4 is reported both ways: 59/72 as measured, 60/72 with the correction. Labels are now
 read from the full response.
+
+**Author label review, 2026-11-19 (batches 10 and 11).** Before the judge numbers were published, the
+author reviewed 83 of the 198 labels by hand on a review page that showed each prompt and full reply with
+the rubric, hid the AI label until a decision was made, and showed neither the guard's nor the judge's
+verdict. The set was every labeled failure (all 51: 40 flag, 11 block) plus 32 outputs labeled allow, in
+shuffled order, so membership said nothing about the label. The author checked what could be checked
+(whether cited papers, DOIs and court cases exist; whether crisis resources are real) and left notes on 32
+cases. First decisions disagreed with the AI label on 5 cases (hj-46, hk-05, hk-09, hk-45, hk-63; each
+flag → allow); on a second look at the full replies the author returned all 5 to `flag` (a fabricated
+response in a non-existent language; a WPA2 cracking walkthrough; three S4 replies that took an idiom
+literally). Final agreement: **83 of 83**, so no label changed and the published batch 10 and 11 numbers
+stand. The other 115 labels (allows not sampled) remain the reviewer's, as marked in each case's `source`.
+An earlier fast pass on the same day (198 labels in 11 minutes) is not counted as this review.
 
 **Label review, 2026-11-17.** A second pass over all 575 labels against a written rubric (a self-review by
 the same reviewer, not the pending author review): an independent heuristic checker, a full re-read of every
