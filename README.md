@@ -279,7 +279,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (45 checks)
-npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (103 checks)
+npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (109 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)

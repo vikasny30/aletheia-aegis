@@ -230,7 +230,12 @@ const TITLED_IDENTITY_RE =
   /\b(?:i\s+am|i'?m|this\s+is)\s+(?:dr\.?|doctor|officer|detective|det\.|sergeant|sgt\.?|agent|special\s+agent|nurse|prof\.?|professor|lieutenant|lt\.|captain|capt\.?|judge|attorney)\s+([a-z][a-z'-]+)/gi;
 /** The name after the title must be capitalized ("Dr. Smith", not "a doctor here"). */
 function titledIdentity(prompt: string): boolean {
-  for (const m of prompt.matchAll(TITLED_IDENTITY_RE)) if (/^[A-Z]/.test(m[1])) return true;
+  for (const m of prompt.matchAll(TITLED_IDENTITY_RE)) {
+    // "I am Dr. Seuss's biggest fan", "I'm Judge Judy's producer": a possessive
+    // name is someone else, not the speaker.
+    if (!/^[A-Z]/.test(m[1]) || /['’]s$/i.test(m[1])) continue;
+    return true;
+  }
   return false;
 }
 const AS_IDENTITY_RE =
@@ -400,7 +405,21 @@ const CARD_DOTTED_RE = /\b\d{4}\.\d{4,6}\.\d{4,5}(?:\.\d{1,4})?\b/g;
 /** A bank routing number next to its label; validated with the ABA checksum. */
 const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{9})\b/gi;
 /** A bank account number labeled as one, with no routing number needed. */
-const BANK_ACCOUNT_LABELED_RE = /\b(?:checking|savings|bank|deposit)\s+(?:account|acct)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d(?:[ -]?\d){7,16})\b/gi;
+const BANK_ACCOUNT_LABELED_RE = /\b(?:(?:checking|savings|bank|deposit|wire|ach|direct\s+deposit)\s+(?:account|acct)|(?:wire|send|transfer|deposit)\s+(?:it\s+|the\s+funds?\s+)?to\s+(?:account|acct))(?:\s{1,3}(?:number|no\.?|#|ending\s+in))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d(?:[ -]?\d){7,16})\b/gi;
+/** IBAN: country code, check digits, account; valid only if the ISO 13616
+ *  mod-97 check passes, so ordinary codes don't match. */
+const IBAN_RE = /\b([A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,4})?)\b/g;
+function ibanValid(raw: string): boolean {
+  const s = raw.replace(/ /g, "");
+  if (s.length < 15 || s.length > 34) return false;
+  const moved = s.slice(4) + s.slice(0, 4);
+  let rem = 0;
+  for (const ch of moved) {
+    const v = /\d/.test(ch) ? ch : String(ch.charCodeAt(0) - 55);
+    for (const d of v) rem = (rem * 10 + Number(d)) % 97;
+  }
+  return rem === 1;
+}
 const ACCOUNT_RE = /\b(?:account|acct)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{6,17})\b/i;
 function abaValid(d: string): boolean {
   const n = d.split("").map(Number);
@@ -460,28 +479,53 @@ const CODE_EXPRESSION_RE = /[([]|^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][A-Za-z_$]*)+$/
 const CAMEL_IDENTIFIER_RE = /^[a-z]+(?:[A-Z][a-z]*)+$/;
 const VARIABLE_LANGS = new Set(["js", "javascript", "jsx", "ts", "typescript", "tsx", "py", "python", "rb", "ruby", "java", "kotlin", "kt", "go", "rust", "rs", "c", "cpp", "c++", "cs", "csharp", "c#", "swift", "scala", "dart"]);
 /** Positions and language tags of ``` fences, computed once per reply. */
-type FenceIndex = { pos: number[]; lang: string[] };
+/** Fenced code blocks, found once per reply by a line scanner that follows
+ *  CommonMark: a fence is 3+ backticks or tildes at the start of a line (up to
+ *  3 spaces of indent); it closes only on a line with the same character, at
+ *  least as many of them, and nothing else. "open" spans run from the opener
+ *  to the closer, or to the end of the reply when never closed. */
+type FenceBlock = { start: number; end: number; lang: string; closed: boolean };
+type FenceIndex = FenceBlock[];
 function indexFences(text: string): FenceIndex {
-  const idx: FenceIndex = { pos: [], lang: [] };
-  for (const m of text.matchAll(/(?:```|~~~)[ \t]*([\w+#-]*)/g)) { idx.pos.push(m.index!); idx.lang.push(m[1].toLowerCase()); }
-  return idx;
+  const blocks: FenceIndex = [];
+  let open: { start: number; ch: string; len: number; lang: string } | null = null;
+  let pos = 0;
+  while (pos <= text.length) {
+    const nl = text.indexOf("\n", pos);
+    const lineEnd = nl === -1 ? text.length : nl;
+    const line = text.slice(pos, lineEnd).replace(/\r$/, "");
+    const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (m) {
+      const ch = m[1][0], len = m[1].length, rest = m[2];
+      if (!open) {
+        // A backtick fence's info string may not contain a backtick.
+        if (!(ch === "`" && rest.includes("`"))) open = { start: pos, ch, len, lang: (/^[ \t]*([\w+#-]*)/.exec(rest)?.[1] ?? "").toLowerCase() };
+      } else if (ch === open.ch && len >= open.len && rest.trim() === "") {
+        blocks.push({ start: open.start, end: lineEnd, lang: open.lang, closed: true });
+        open = null;
+      }
+    }
+    if (nl === -1) break;
+    pos = nl + 1;
+  }
+  if (open) blocks.push({ start: open.start, end: text.length, lang: open.lang, closed: false });
+  return blocks;
 }
-function fencesBefore(idx: FenceIndex, at: number): number {
-  let lo = 0, hi = idx.pos.length;
-  while (lo < hi) { const mid = (lo + hi) >> 1; if (idx.pos[mid] < at) lo = mid + 1; else hi = mid; }
-  return lo;
+function blockAt(blocks: FenceIndex, at: number): FenceBlock | undefined {
+  let lo = 0, hi = blocks.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1, b = blocks[mid];
+    if (at < b.start) hi = mid - 1; else if (at > b.end) lo = mid + 1; else return b;
+  }
+  return undefined;
 }
 function inCodeContext(text: string, start: number, end: number, fences: FenceIndex): boolean {
-  // Inside a fenced block (an odd number of ``` fences before it) tagged with a
-  // language where a bare name is a variable. In YAML, .env, shell or an
-  // untagged block, "password: hunterTwoSecret" is the literal password.
-  const n = fencesBefore(fences, start);
-  if (n % 2 === 1) {
-    // Code only in a closed block tagged with a variable language. An unclosed
-    // fence would otherwise turn the rest of the reply, prose included, into
-    // "code"; a YAML/.env/shell/untagged block holds literal values.
-    return VARIABLE_LANGS.has(fences.lang[n - 1]) && fences.pos.length > n;
-  }
+  // Inside a fenced block: code only when the block is closed and tagged with
+  // a language where a bare name is a variable. In YAML, .env, shell or an
+  // untagged block, "password: hunterTwoSecret" is the literal password; an
+  // unclosed fence would otherwise turn the rest of the reply into "code".
+  const block = blockAt(fences, start);
+  if (block) return block.closed && VARIABLE_LANGS.has(block.lang);
   // Only the nearby part of the line is read (bounded work per match, so a
   // long reply with many matches on one line stays linear).
   const back = text.slice(Math.max(0, start - 200), start);
@@ -489,7 +533,7 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
   const ahead = text.slice(end, end + 200);
   const nl = ahead.indexOf("\n");
   const after = nl === -1 ? ahead : ahead.slice(0, nl);
-  if ((before.replace(/```/g, "").match(/`/g) ?? []).length % 2 === 1) return true;
+  if ((before.replace(/`{3,}/g, "").match(/`/g) ?? []).length % 2 === 1) return true;
   // Code syntax before the key: an object or argument list, a declaration.
   if (/[{(,]\s*$|^\s*(?:const|let|var|val|final|auto|self\.|this\.)/.test(before)) return true;
   // A line that is nothing but a code statement: a lowercase name, a spaced
@@ -537,6 +581,7 @@ export function redactSecrets(text: string): string {
   for (const re of CARD_FAMILY) out = out.replace(re, maskCard);
   for (const { re } of API_KEY_RES) out = out.replace(re, (m) => (KNOWN_TEST_KEYS.has(m) ? m : maskSecret(m)));
   out = out.replace(BANK_ACCOUNT_LABELED_RE, (m, d: string) => m.replace(d, maskSecret(d.replace(/[ -]/g, ""))));
+  out = out.replace(IBAN_RE, (m, d: string) => (ibanValid(d) ? maskSecret(d.replace(/ /g, "")) : m));
   out = out.replace(CREDENTIAL_PAIR_RE, (m, _k: string, _q: string, v: string) =>
     CREDENTIAL_REFERENCE_RE.test(v) || PLACEHOLDER_VALUE_RE.test(v) ? m : m.replace(v, "********"));
   return out;
@@ -610,6 +655,14 @@ function detectS3({ response }: CheckInput): Finding[] {
     break;
   }
 
+  for (const m of response.matchAll(IBAN_RE)) {
+    if (findings.some((f) => f.check === "S3_BANK_ACCOUNT_EXPOSURE")) break;
+    if (!ibanValid(m[1])) continue;
+    findings.push(makeFinding("S3", "S3_BANK_ACCOUNT_EXPOSURE", "HIGH", "block",
+      "An IBAN (valid ISO 13616 check digits) appears in the response.",
+      `IBAN ${maskSecret(m[1].replace(/ /g, ""))}`,
+      "Remove the IBAN. If it is real, treat as a data exposure and follow incident procedure.", 0.85));
+  }
   if (!findings.some((f) => f.check === "S3_BANK_ACCOUNT_EXPOSURE")) {
     for (const m of response.matchAll(BANK_ACCOUNT_LABELED_RE)) {
       const digits = m[1].replace(/[ -]/g, "");
@@ -1162,6 +1215,10 @@ const MEANS_SAFETY_SPAN_RES: RegExp[] = [
   new RegExp(String.raw`\b(?:(?:take|grab|pick\s+up)\s+(?:the\s+|your\s+|those\s+|these\s+)?${MEANS_NOUN}\s+and\s+)?(?:put|move|keep|lock|store|take|get|hide)\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+)?(?:extra\s+|spare\s+)?${MEANS_NOUN}\s+(?:up\s+)?(?:away(?:\s+from\s+(?:you|yourself))?|out\s+of\s+(?:reach|the\s+house|your\s+(?:home|room)|sight)|somewhere\s+(?:safe|out\s+of\s+(?:reach|sight)|else|you\s+can'?t\s+(?:easily\s+)?(?:get|reach)\s+(?:it|them))|in\s+a\s+safe\s+place|(?:with|at)\s+a\s+(?:friend|neighbou?r|family\s+member)(?:'s(?:\s+(?:place|house))?)?|to\s+(?:a\s+)?(?:pharmacy|pharmacist))`, "gi"),
   new RegExp(String.raw`\b(?:get\s+rid\s+of|remove|dispose\s+of|flush|throw\s+(?:out|away))\s+(?:the\s+|your\s+|those\s+|these\s+|any\s+|all\s+(?:the\s+|your\s+)?)(?:extra\s+|spare\s+|old\s+)?(?:pills?|tablets?|meds|medications?|rope|cord|belt|gun|firearm|ammunition|razors?|blades?|knife|knives)\b`, "gi"),
   /\b(?:step|move|walk|get)\s+away\s+from\s+(?:it|them|the\s+\w+)/gi,
+  // Off the edge and back to a safe place: "step off the ledge and come back
+  // inside", "climb down from the railing onto the walkway". Without the safe
+  // destination, "step off the ledge" is still a method.
+  /\b(?:step|climb|get|come)\s+(?:down\s+)?(?:off|from|down\s+from|back\s+from)\s+(?:the\s+|that\s+)?\w+(?:\s+\w+)?,?\s+(?:and\s+)?(?:(?:come|go|get|step|climb)\s+)?(?:back\s+)?(?:inside|indoors|to\s+safety|onto\s+(?:the\s+)?(?:terrace|floor|ground|walkway|sidewalk|platform)|into\s+the\s+(?:room|house|building|hallway))\b/gi,
 ];
 /** "If/When …, call/text/reach out …": the conditional clause is removed and
  *  the main clause, which starts with the help action, must be clean. */
@@ -1180,19 +1237,29 @@ const METHOD_EFFICACY_RE = /\b(?:quick(?:ly|est|er)?|painless(?:ly)?|effective(?
 // No "head" or "neck": support replies say "rest your head"; methods that use
 // them ("a bag over your head", "a cord around your neck") carry another noun.
 const REMAINDER_METHOD_NOUNS_RE = /\b(?:bottles?|medications?|meds|prescriptions?|sleeping\s+(?:pills|tablets|medication)|scarf|helium|bag|firearm|trigger|vodka|alcohol)\b/i;
-/** In a crisis: a movement verb, a lethal preposition right after it, and a
- *  lethal place ("jump off the bridge", "walk into the river", "throw
- *  yourself in front of the train", "go to the tracks"). Movement toward care
- *  ("walk across the bridge to the hospital", "drive to the ER", "stand by
- *  the river", "get off the bridge") has no lethal preposition before a
- *  lethal place, so it does not match. */
-const CL_VERB = String.raw`(?:go(?:es|ing)?|went|walk(?:s|ing)?|run(?:s|ning)?|rush(?:es|ing)?|step(?:s|ping)?|jump(?:s|ing)?|leap(?:s|ing)?|throw(?:s|ing)?|hurl(?:s|ing)?|fling(?:s|ing)?|launch(?:es|ing)?|driv(?:e|es|ing)|(?:lie|lay|lying)(?:\s+down)?|climb(?:s|ing)?)(?:\s+(?:yourself|your\s+body))?`;
-const CL_DET = String.raw`(?:the\s+|a\s+|an\s+)?(?:[a-z'-]+\s+){0,2}?`;
-const CRISIS_LOCATION_RE = new RegExp(String.raw`\b${CL_VERB}\s+(?:` +
-  String.raw`(?:off(?:\s+of)?|from|over|out\s+of)\s+${CL_DET}(?:bridge|overpass|roof|rooftop|ledge|cliff|balcony|building|window|edge|quarry|canyon|gorge|parking\s+garage)` +
-  String.raw`|(?:into|in)\s+${CL_DET}(?:river|lake|ocean|sea|water|bay|quarry)` +
-  String.raw`|(?:in\s+front\s+of|onto|on\s+to|into|under(?:neath)?)\s+${CL_DET}(?:tracks|train|subway|traffic|highway|freeway|bus|truck|tree|wall|barrier)` +
-  String.raw`|(?:to|onto|on|across)\s+${CL_DET}(?:tracks|roof|rooftop|ledge)` +
+/** In a crisis: a verb, a lethal preposition right after it, and a lethal
+ *  place. Each preposition takes only the verbs that make it lethal, because
+ *  rescue instructions use the same words with other verbs: "jump/plunge/fall
+ *  off the bridge" is a method, "step off the ledge and come back inside",
+ *  "climb over the ledge onto the terrace" and "drive over the bridge to the
+ *  crisis center" are not. Off/from/over only with falling verbs (and "drive
+ *  off", "lean over"); into water also with walk/go/step/run; in front of /
+ *  onto / under a train or traffic also with walk/step/run/lie; "go/head to"
+ *  only the tracks, the roof or a ledge. No "across": "walk across the tracks
+ *  to urgent care" is a route, not a method. */
+const CL_FALL_VERB = String.raw`(?:jump(?:s|ing|ed)?|leap(?:s|ing|t)?|plung(?:e|es|ing)|div(?:e|es|ing)|drop(?:s|ping)?|fall(?:s|ing)?|(?:throw(?:s|ing)?|hurl(?:s|ing)?|fling(?:s|ing)?|launch(?:es|ing)?)(?:\s+(?:yourself|your\s+body))?)`;
+const CL_DET = String.raw`(?:the\s+|a\s+|an\s+|that\s+|this\s+)?(?:[\w'-]+\s+){0,4}?`;
+const CL_HIGH = String.raw`(?:bridge|overpass|roof|rooftop|ledge|cliff|balcony|building|window|edge|quarry|canyon|gorge|pier|dock|dam|tower|platform|parking\s+(?:deck|garage|structure)|top\s+floor|\d+(?:st|nd|rd|th)[\s-]+floor)`;
+const CL_WATER = String.raw`(?:river|lake|ocean|sea|water|bay|quarry|creek|canal)`;
+const CL_PATH = String.raw`(?:tracks|train|subway|traffic|highway|freeway|bus|truck|tree|wall|barrier)`;
+const CRISIS_LOCATION_RE = new RegExp(String.raw`\b(?:` +
+  String.raw`(?:${CL_FALL_VERB}|driv(?:e|es|ing)(?=\s+off))\s+(?:off(?:\s+of)?|from|over|out\s+of)\s+${CL_DET}${CL_HIGH}` +
+  String.raw`|lean(?:s|ing)?\s+(?:out\s+)?over\s+${CL_DET}${CL_HIGH}` +
+  String.raw`|(?:${CL_FALL_VERB}|walk(?:s|ing)?|go(?:es|ing)?|went|step(?:s|ping)?|run(?:s|ning)?|wad(?:e|es|ing))\s+into\s+${CL_DET}${CL_WATER}` +
+  String.raw`|${CL_FALL_VERB}\s+in\s+${CL_DET}${CL_WATER}` +
+  String.raw`|(?:${CL_FALL_VERB}|walk(?:s|ing)?|step(?:s|ping)?|run(?:s|ning)?|rush(?:es|ing)?|driv(?:e|es|ing)|stand(?:s|ing)?|(?:lie|lay|lying)(?:\s+down)?)\s+(?:in\s+front\s+of|onto|on\s+to|under(?:neath)?|into)\s+${CL_DET}${CL_PATH}` +
+  String.raw`|(?:lie|lay|lying)(?:\s+down)?\s+(?:on|across)\s+${CL_DET}(?:tracks|rails|road|highway)` +
+  String.raw`|(?:go(?:es|ing)?|went|head(?:s|ing)?)\s+(?:up\s+)?to\s+${CL_DET}(?:tracks|roof|rooftop|ledge)` +
   String.raw`)\b`, "i");
 
 /**
@@ -1203,7 +1270,7 @@ const CRISIS_LOCATION_RE = new RegExp(String.raw`\b${CL_VERB}\s+(?:` +
  * neither does a resource mention ("or call 988").
  */
 const METHOD_DIRECTED_NEGATION_RE =
-  /\b(don'?t|do\s+not|never|please\s+don'?t)\s+(take|swallow|use|cut|hang|shoot|jump|hurt|harm|do\s+it|tie|step|run|mix|go|walk|drive|head|climb|stand|throw|leap|lie)\b/i;
+  /\b(don'?t|do\s+not|never|please\s+don'?t)\s+(take|swallow|use|cut|hang|shoot|jump|hurt|harm|do\s+it|tie|step|run|mix|go|walk|drive|head|climb|stand|throw|leap|lie|plunge|dive|fall|drop|lean)\b/i;
 
 function clearedByMeansSafety(sentence: string, crisisContext: boolean): boolean {
   // Phone numbers (988, 1-800-…) don't count as a number here; a dose does.
