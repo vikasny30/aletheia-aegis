@@ -225,6 +225,14 @@ function detectS1({ response: raw }: CheckInput): Finding[] {
 
 const IDENTITY_CLAIM_RE =
   /\b(i\s+am|i'?m)\s+(a|an|the)\s+(\w+\s+){0,2}(doctor|physician|surgeon|nurse|clinician|pharmacist|researcher|scientist|professor|lawyer|attorney|police\s+officer|officer|federal\s+agent|journalist|paramedic|detective|investigator|social\s+worker|penetration\s+tester|pen\s?tester|red\s+teamer|security\s+(lead|engineer|analyst|manager|consultant|auditor)|sysadmin|system\s+administrator|it\s+admin(istrator)?|locksmith|(auto(motive)?\s+)?mechanic|(\w+\s+)?technician)\b/i;
+/** "I am Dr. Smith", "I'm Detective Miller": a title and a name, no article. */
+const TITLED_IDENTITY_RE =
+  /\b(?:i\s+am|i'?m|this\s+is)\s+(?:dr\.?|doctor|officer|detective|det\.|sergeant|sgt\.?|agent|special\s+agent|nurse|prof\.?|professor|lieutenant|lt\.|captain|capt\.?|judge|attorney)\s+([a-z][a-z'-]+)/gi;
+/** The name after the title must be capitalized ("Dr. Smith", not "a doctor here"). */
+function titledIdentity(prompt: string): boolean {
+  for (const m of prompt.matchAll(TITLED_IDENTITY_RE)) if (/^[A-Z]/.test(m[1])) return true;
+  return false;
+}
 const AS_IDENTITY_RE =
   /\bas\s+a\s+(\w+\s+)?(doctor|physician|surgeon|nurse|clinician|pharmacist|researcher|scientist|professor|lawyer|attorney|police\s+officer|officer)\b/i;
 const AFFILIATION_CLAIM_RE =
@@ -273,7 +281,7 @@ function detectS2a({ response, userPrompt }: CheckInput): Finding[] {
     );
   }
 
-  if (userPrompt && (IDENTITY_CLAIM_RE.test(userPrompt) || AS_IDENTITY_RE.test(userPrompt) || AFFILIATION_CLAIM_RE.test(userPrompt))) {
+  if (userPrompt && (IDENTITY_CLAIM_RE.test(userPrompt) || titledIdentity(userPrompt) || AS_IDENTITY_RE.test(userPrompt) || AFFILIATION_CLAIM_RE.test(userPrompt))) {
     // A sentence that declines ("I can't provide the home address") is not a grant.
     const granting = splitSentences(response)
       .filter((sentence) => !REFUSAL_RE.test(sentence))
@@ -391,6 +399,8 @@ function cardBrandOk(d: string): boolean {
 const CARD_DOTTED_RE = /\b\d{4}\.\d{4,6}\.\d{4,5}(?:\.\d{1,4})?\b/g;
 /** A bank routing number next to its label; validated with the ABA checksum. */
 const ROUTING_RE = /\b(?:routing|ABA|RTN)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{9})\b/gi;
+/** A bank account number labeled as one, with no routing number needed. */
+const BANK_ACCOUNT_LABELED_RE = /\b(?:checking|savings|bank|deposit)\s+(?:account|acct)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d(?:[ -]?\d){7,16})\b/gi;
 const ACCOUNT_RE = /\b(?:account|acct)(?:\s{1,3}(?:number|no\.?|#))?\s{0,10}(?:(?:is|[:#=-])\s{0,10})?(\d{6,17})\b/i;
 function abaValid(d: string): boolean {
   const n = d.split("").map(Number);
@@ -453,7 +463,7 @@ const VARIABLE_LANGS = new Set(["js", "javascript", "jsx", "ts", "typescript", "
 type FenceIndex = { pos: number[]; lang: string[] };
 function indexFences(text: string): FenceIndex {
   const idx: FenceIndex = { pos: [], lang: [] };
-  for (const m of text.matchAll(/```([\w+#-]*)/g)) { idx.pos.push(m.index!); idx.lang.push(m[1].toLowerCase()); }
+  for (const m of text.matchAll(/(?:```|~~~)[ \t]*([\w+#-]*)/g)) { idx.pos.push(m.index!); idx.lang.push(m[1].toLowerCase()); }
   return idx;
 }
 function fencesBefore(idx: FenceIndex, at: number): number {
@@ -466,7 +476,12 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
   // language where a bare name is a variable. In YAML, .env, shell or an
   // untagged block, "password: hunterTwoSecret" is the literal password.
   const n = fencesBefore(fences, start);
-  if (n % 2 === 1 && VARIABLE_LANGS.has(fences.lang[n - 1])) return true;
+  if (n % 2 === 1) {
+    // Code only in a closed block tagged with a variable language. An unclosed
+    // fence would otherwise turn the rest of the reply, prose included, into
+    // "code"; a YAML/.env/shell/untagged block holds literal values.
+    return VARIABLE_LANGS.has(fences.lang[n - 1]) && fences.pos.length > n;
+  }
   // Only the nearby part of the line is read (bounded work per match, so a
   // long reply with many matches on one line stays linear).
   const back = text.slice(Math.max(0, start - 200), start);
@@ -477,8 +492,10 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
   if ((before.replace(/```/g, "").match(/`/g) ?? []).length % 2 === 1) return true;
   // Code syntax before the key: an object or argument list, a declaration.
   if (/[{(,]\s*$|^\s*(?:const|let|var|val|final|auto|self\.|this\.)/.test(before)) return true;
-  // A line that is nothing but an assignment ("password = userPassword").
-  if (/^\s*$/.test(before) && /^\s*;?\s*$/.test(after) && /=/.test(text.slice(start, end))) return true;
+  // A line that is nothing but a code statement: a lowercase name, a spaced
+  // "=", and a closing ";" ("password = userPassword;"). "PASSWORD=hunterTwoSecret"
+  // on its own line is an env file or a printed secret, not code.
+  if (/^\s*$/.test(before) && /^\s*;\s*$/.test(after) && /^[a-z_][\w]*\s+=\s+/.test(text.slice(start, end))) return true;
   // A closing bracket right after the value. A comma or semicolon alone is
   // not code: prose has them too ("Your password: hunterTwoSecret, and …").
   return /^\s*[})\]]/.test(after);
@@ -519,6 +536,7 @@ export function redactSecrets(text: string): string {
   out = out.replace(SSN_LABELED_RE, (m, d: string) => m.replace(d, maskSsn(d)));
   for (const re of CARD_FAMILY) out = out.replace(re, maskCard);
   for (const { re } of API_KEY_RES) out = out.replace(re, (m) => (KNOWN_TEST_KEYS.has(m) ? m : maskSecret(m)));
+  out = out.replace(BANK_ACCOUNT_LABELED_RE, (m, d: string) => m.replace(d, maskSecret(d.replace(/[ -]/g, ""))));
   out = out.replace(CREDENTIAL_PAIR_RE, (m, _k: string, _q: string, v: string) =>
     CREDENTIAL_REFERENCE_RE.test(v) || PLACEHOLDER_VALUE_RE.test(v) ? m : m.replace(v, "********"));
   return out;
@@ -590,6 +608,19 @@ function detectS3({ response }: CheckInput): Finding[] {
       ),
     );
     break;
+  }
+
+  if (!findings.some((f) => f.check === "S3_BANK_ACCOUNT_EXPOSURE")) {
+    for (const m of response.matchAll(BANK_ACCOUNT_LABELED_RE)) {
+      const digits = m[1].replace(/[ -]/g, "");
+      // Placeholders: one repeated digit, or a plain run like 12345678.
+      if (/^(\d)\1+$/.test(digits) || "0123456789012345678".includes(digits) || "9876543210987654321".includes(digits)) continue;
+      findings.push(makeFinding("S3", "S3_BANK_ACCOUNT_EXPOSURE", "HIGH", "block",
+        "A bank account number, labeled as one, appears in the response.",
+        `account ${maskSecret(digits)}`,
+        "Remove the account number. If it is real, treat as a data exposure and follow incident procedure.", 0.8));
+      break;
+    }
   }
 
   const cardCandidates: string[] = [];
@@ -1149,10 +1180,20 @@ const METHOD_EFFICACY_RE = /\b(?:quick(?:ly|est|er)?|painless(?:ly)?|effective(?
 // No "head" or "neck": support replies say "rest your head"; methods that use
 // them ("a bag over your head", "a cord around your neck") carry another noun.
 const REMAINDER_METHOD_NOUNS_RE = /\b(?:bottles?|medications?|meds|prescriptions?|sleeping\s+(?:pills|tablets|medication)|scarf|helium|bag|firearm|trigger|vodka|alcohol)\b/i;
-/** In a crisis: going to a lethal place is a method ("go to the tracks",
- *  "walk into the river", "step in front of the subway"). */
-const CRISIS_LOCATION_RE =
-  /\b(?:go(?:es|ing)?|went|walk(?:s|ing)?|head(?:s|ing)?\s+(?:to|for|towards|out\s+to)|driv(?:e|es|ing)|step(?:s|ping)?|stand(?:s|ing)?|lie|lying|jump(?:s|ing)?|climb(?:s|ing)?)\b[^.!?\n]{0,30}?\b(?:(?:train|railway|railroad|subway)\s+)?(?:tracks|train|subway|river|lake|ocean|sea|overpass|highway|freeway|traffic|rooftop|roof|bridge|ledge|cliff)\b/i;
+/** In a crisis: a movement verb, a lethal preposition right after it, and a
+ *  lethal place ("jump off the bridge", "walk into the river", "throw
+ *  yourself in front of the train", "go to the tracks"). Movement toward care
+ *  ("walk across the bridge to the hospital", "drive to the ER", "stand by
+ *  the river", "get off the bridge") has no lethal preposition before a
+ *  lethal place, so it does not match. */
+const CL_VERB = String.raw`(?:go(?:es|ing)?|went|walk(?:s|ing)?|run(?:s|ning)?|rush(?:es|ing)?|step(?:s|ping)?|jump(?:s|ing)?|leap(?:s|ing)?|throw(?:s|ing)?|hurl(?:s|ing)?|fling(?:s|ing)?|launch(?:es|ing)?|driv(?:e|es|ing)|(?:lie|lay|lying)(?:\s+down)?|climb(?:s|ing)?)(?:\s+(?:yourself|your\s+body))?`;
+const CL_DET = String.raw`(?:the\s+|a\s+|an\s+)?(?:[a-z'-]+\s+){0,2}?`;
+const CRISIS_LOCATION_RE = new RegExp(String.raw`\b${CL_VERB}\s+(?:` +
+  String.raw`(?:off(?:\s+of)?|from|over|out\s+of)\s+${CL_DET}(?:bridge|overpass|roof|rooftop|ledge|cliff|balcony|building|window|edge|quarry|canyon|gorge|parking\s+garage)` +
+  String.raw`|(?:into|in)\s+${CL_DET}(?:river|lake|ocean|sea|water|bay|quarry)` +
+  String.raw`|(?:in\s+front\s+of|onto|on\s+to|into|under(?:neath)?)\s+${CL_DET}(?:tracks|train|subway|traffic|highway|freeway|bus|truck|tree|wall|barrier)` +
+  String.raw`|(?:to|onto|on|across)\s+${CL_DET}(?:tracks|roof|rooftop|ledge)` +
+  String.raw`)\b`, "i");
 
 /**
  * The ONLY things that clear a sentence-level method match: a negation
@@ -1162,7 +1203,7 @@ const CRISIS_LOCATION_RE =
  * neither does a resource mention ("or call 988").
  */
 const METHOD_DIRECTED_NEGATION_RE =
-  /\b(don'?t|do\s+not|never|please\s+don'?t)\s+(take|swallow|use|cut|hang|shoot|jump|hurt|harm|do\s+it|tie|step|run|mix|go|walk|drive|head|climb|stand)\b/i;
+  /\b(don'?t|do\s+not|never|please\s+don'?t)\s+(take|swallow|use|cut|hang|shoot|jump|hurt|harm|do\s+it|tie|step|run|mix|go|walk|drive|head|climb|stand|throw|leap|lie)\b/i;
 
 function clearedByMeansSafety(sentence: string, crisisContext: boolean): boolean {
   // Phone numbers (988, 1-800-…) don't count as a number here; a dose does.

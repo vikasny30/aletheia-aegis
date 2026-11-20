@@ -77,11 +77,23 @@ export function matches(reference: string, item: any): boolean {
   // reference does carry a title, it must match: a real journal under an
   // invented title is still an invented paper.
   const container = String(item?.["container-title"]?.[0] ?? "");
-  if (overlap(String(item?.title?.[0] ?? "")) >= 0.5) return true;
+  const realTitle = String(item?.title?.[0] ?? "");
+  if (overlap(realTitle) >= 0.5) return true;
+  const claimed = claimedTitle(reference);
+  // A citation often drops a subtitle Crossref records ("Attention Is All You
+  // Need" vs "Attention Is All You Need: The Transformer …"): the claimed
+  // title must then be almost entirely inside the real one.
+  const claimedTokens = claimed ? tokens(claimed) : new Set<string>();
+  if (claimedTokens.size >= 2) {
+    const real = tokens(realTitle);
+    if ([...claimedTokens].filter((t) => real.has(t)).length / claimedTokens.size >= 0.8) return true;
+  }
   if (!(year && refYear) || overlap(container) < 0.75) return false;
   const containerTokens = tokens(container);
-  const claimed = claimedTitle(reference);
-  if (claimed !== null) return [...tokens(claimed)].filter((t) => !containerTokens.has(t)).length < 2;
+  // The journal stands in only when the reply gives no title of its own: a
+  // claimed title that adds even one word beyond the journal's name is an
+  // invented title, not a missing one.
+  if (claimed !== null) return [...claimedTokens].every((t) => containerTokens.has(t));
   // No title could be parsed, and the entry isn't a labeled one without a
   // Title field: the fallback holds only if nothing title-like is left once
   // the authors, journal and numbers are set aside.
