@@ -1,8 +1,6 @@
-# Aletheia Aegis: Sub-Millisecond Output Guardrails & Safety Architecture for AI Agents
+# Aletheia Aegis
 
-### The High-Throughput Safety Runtime for Frontier LLMs & Autonomous Systems
-**Architected & Directed by [Vikas Shivpuriya](https://github.com/vikasny30)**  
-*Director / VP of Engineering & AI Systems | Creator of the Aletheia Architecture*
+> **Sub-millisecond output guardrails and safety runtime for autonomous AI agents and frontier LLMs.**
 
 [![Architecture](https://img.shields.io/badge/Architecture-Aletheia%20Safety%20Runtime-4F46E5.svg)](#architectural-thesis-the-latency--reliability-wall)
 [![Layer](https://img.shields.io/badge/Layer-Autonomous%20Output%20Guardrails-blue.svg)](#the-aletheia-architecture-dual-layer-defense)
@@ -324,17 +322,10 @@ npm run benchmark          # 10,000-iteration microsecond latency benchmark
 
 ---
 
-## Engineering Leadership & Research Stewardship
+## Author & Citation
 
-**Aletheia Aegis** is authored and architected by **[Vikas Shivpuriya](https://github.com/vikasny30)** as part of the **Aletheia AI Safety Research Core**.
+Aletheia Aegis is authored and architected by **[Vikas Shivpuriya](https://github.com/vikasny30)** as part of the **Aletheia AI Safety Research Core**.
 
-### Architectural Leadership & Systems Vision
-Vikas Shivpuriya is a **Director / VP of Engineering and AI Systems Architect** specializing in production agentic safety, deterministic runtime guardrails, and high-throughput AI infrastructure:
-- **Framework Creator**: Architect of the **Aletheia Taxonomy**, translating empirical failure distributions across 2,571 incidents into production-grade safety primitives.
-- **Architectural Pioneer**: Originated the **Dual-Layer Agent Guardrail Paradigm**, separating execution-layer tool interception (`aletheia-mcp`) from generation-layer output validation (`aletheia-aegis`).
-- **Production Realist**: Champion of **Zero-Overhead Deterministic Guardrails**, eliminating the multi-second latency and prohibitive costs of recursive LLM evaluation in favor of sub-millisecond, ReDoS-hardened stateful filters.
-
-### Citation & Academic Attribution
 To cite the Aletheia taxonomy, runtime architecture, or empirical findings in research or technical documentation:
 
 ```bibtex
