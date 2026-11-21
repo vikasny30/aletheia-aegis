@@ -10,7 +10,7 @@
 
 Aegis is the output plane of the Aletheia safety framework. It inspects generated text before it reaches a user, blocks credential leaks and life-safety failures outright, and flags everything else for audit or disclaimer. It runs offline by default, on CPU, with no response text retained.
 
-Version 0.3.0. Apache 2.0. TypeScript, Node.js 18/20/22.
+Ships as an MCP server, TypeScript SDK, and CLI. Version 0.3.0. Apache 2.0. TypeScript, Node.js 18/20/22.
 
 ---
 
@@ -310,7 +310,7 @@ Aletheia Aegis is authored by Vikas Shivpuriya as part of the Aletheia AI Safety
 ```bibtex
 @software{shivpuriya2026aegis,
   author       = {Vikas Shivpuriya},
-  title        = {Aletheia Aegis: Runtime Enforcement for Autonomous Agent Outputs},
+  title        = {Aletheia Aegis: Inference-Time Output Enforcement for Autonomous Agents},
   year         = {2026},
   publisher    = {GitHub},
   version      = {0.3.0},
