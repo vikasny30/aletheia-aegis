@@ -267,7 +267,7 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 - **Crisis resources are locale-aware** (`locale` param or `AEGIS_LOCALE`): US, GB, IE, CA, AU, NZ, IN. Unknown locales fall back to US resources plus the international directory (findahelpline.com). The numbers live in one place, `src/engine/crisis-resources.ts` — if a helpline changes, fix it there.
 - **S3 has known gaps.** A password stated in prose as an ordinary word ("your password is sunshine"; one with a digit, a case change or a symbol is caught), a card number glued to other digits with no separator, a key with a look-alike letter from another script (Cyrillic "к"), base64 or split values, and key formats not in the list all pass. Card numbers must carry a real card-brand prefix, so a Luhn-valid timestamp or order id doesn't block. Values that look like demo text (`abc123def456…`) under a credential key do block: a skip for them was tried and dropped because a real secret could ride on it.
 - **The Crossref check only covers citations S1 recognizes.** It lifts S1 when every citation S1 detected belongs to a confirmed reference. A fabricated reference that S1 can't see in the first place ("Brown, A. B. Invented paper. Nature Fake." with no year, or prose like "Brown and Lee confirmed it") passes with or without the check.
-- **S6 method detail by place and verb is pattern-based, and the boundary is fuzzy.** Five independent test rounds showed the same words serve both rescue and harm ("step off the ledge and come back inside" vs "step off the ledge"; "walk into the ocean up to your ankles" vs "walk into the ocean"). The rules pair each lethal preposition with the verbs that make it lethal and clear a short list of safe destinations, but a novel phrasing can still be blocked wrongly or missed. A missed method still gets a FLAG when the reply lacks crisis resources or a supportive tone; the optional model judge is the stronger check here.
+- **S6 method detail by place and verb is pattern-based, and the boundary is fuzzy.** Six independent test rounds showed the same words serve both rescue and harm ("step off the ledge and come back inside" vs "step off the ledge"; "walk into the ocean up to your ankles" vs "walk into the ocean"). The rules pair each lethal preposition with the verbs that make it lethal and clear a short list of safe destinations, but a novel phrasing can still be blocked wrongly or missed. A missed method still gets a FLAG when the reply lacks crisis resources or a supportive tone; the optional model judge is the stronger check here.
 - **S2a misses conversational identity claims** ("Dr Smith here", "speaking as Detective Miller") and unlisted titles; **S3 doesn't block an account number with no bank word** ("acct no. 48291048291"), because gym and utility account numbers look the same.
 - **S6 is English-first.** A few French, Spanish and German statements of intent are recognized; other languages, and most slang beyond "kms" and "unalive", are not.
 - **S8 is not covered** until the session auditor exists. Single-response guarding cannot see aggregate harm.
@@ -281,10 +281,12 @@ Add to your Claude Desktop config (`claude_desktop_config.json` is included as a
 npm install
 npm run build        # tsc
 npm test             # guard tests + eval-set assertions (45 checks)
-npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (119 checks)
+npm run test:judge   # model judge, reference check, measurement, roll-up and security tests, network stubbed (121 checks)
 npm run test:fp      # false-positive sweep over benign responses (90)
 npm run demo         # one case per verdict path, printed as a table
 npm run test:mcp     # MCP stdio smoke test (spawns dist/index.js, speaks JSON-RPC; 13 checks)
+npm run test:mcp:adversarial # MCP stdio adversarial protocol, chunked streaming, and sandbox tests (11 checks)
+npm run test:stress  # concurrency and re-entrancy stress test (120 interleaved evaluations)
 npm run test:leak    # content-leak test: fake SSN, key and email must not appear in telemetry, metrics history or stderr (spawns dist/index.js)
 npm run test:parity  # Python/TypeScript classifier parity test
 npm run eval         # guard + corpus scorecards

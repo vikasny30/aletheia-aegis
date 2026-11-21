@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (planned 0.3.0)
+## 0.3.0 — 2026-11-20
 
 Measurement: every guardrail decision now carries its proof, as counts and timings only.
 
