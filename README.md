@@ -50,7 +50,7 @@ flowchart TB
         A[Raw model response stream]
     end
 
-    subgraph Aegis["Aletheia Aegis: Runtime Safety Platform"]
+    subgraph Aegis["Aletheia Aegis: Inference-Time Safety Platform"]
         direction TB
         B["Stage 1: Deterministic engine<br/>DFA and structural checks, p95 0.019-0.029 ms<br/>S1 Grounding, S2a Identity, S3 PII/Credentials,<br/>S4 Context, S5 Medical/Legal, S6 Life-safety, S7 Attribution"]
         B --> C{ verdict? }
@@ -262,7 +262,7 @@ Transparency on limits is part of the design:
 - **Prose credential screening (S3).** To avoid false alarms on ordinary conversation, credential checks require non-word or complex token characteristics. Single dictionary words ("your password is password") deliberately pass. Cards require valid brand prefixes and Luhn checks. Bank accounts require banking context, so utility bills and gym numbers are not blocked.
 - **Life safety (S6).** Strict verb-preposition pairing keeps benign de-escalation ("sit on the platform bench while you wait") passing with supportive resources, while lethal placements ("sit on the train tracks") block. English-first, with core French, German, and Spanish intent statements.
 - **Citation scope (S1).** Crossref verifies scholarly works (DOI, arXiv, PMID). Legal case citations retain their S1 warning by design; court registries are outside Crossref.
-- **Single-turn scope (S8).** Aegis operates on individual prompt-response pairs. Multi-turn erosion requires session-level auditing, which is the planned session auditor (see Roadmap).
+- **Single-turn scope (S8).** Aegis operates on individual prompt-response pairs. Multi-turn erosion requires session-level auditing, which is the planned session auditor (see [ROADMAP.md](ROADMAP.md)).
 
 ---
 
@@ -270,14 +270,18 @@ Transparency on limits is part of the design:
 
 **Current: v0.3.0.** Public release. Deterministic engine, optional judge, Crossref verification, MCP server, and SDK are stable. S4 remains experimental.
 
-**Next:**
+**Next** (full technical plan in [ROADMAP.md](ROADMAP.md)):
 
+- Streaming token/chunk inspection and framework adapters (v0.4.0)
 - Session auditor for S8 multi-turn erosion
 - Expanded non-English coverage for S6
 - Broader held-out eval sets, with sampling methodology documented in repo
-- Registry listing following npm publication
 
-Contributions and issue reports are welcome. Please include a redacted reproduction case for any bypass report, never a live credential.
+---
+
+## Contributing
+
+Contributions, new evaluation cases, and issue reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, offline test commands, and pull request guidelines. Please include a redacted reproduction case for any bypass report—never a live credential. For sensitive disclosures, see [SECURITY.md](SECURITY.md).
 
 ---
 
