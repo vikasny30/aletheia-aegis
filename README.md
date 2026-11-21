@@ -1,9 +1,9 @@
-# Aletheia Aegis: Output Safety for Autonomous Agents
+# Aletheia Aegis: Runtime Enforcement for Autonomous Agent Outputs
 
 > A deterministic, sub-millisecond guard for model outputs. Fail-closed on irreversible harm, fast enough to sit on every response, with an optional semantic judge for the cases patterns cannot settle.
 
 [![Architecture](https://img.shields.io/badge/Architecture-Aletheia%20Safety%20Runtime-blue)]()
-[![Layer](https://img.shields.io/badge/Layer-Output%20Guardrails-green)]()
+[![Layer](https://img.shields.io/badge/Layer-Output%20Enforcement-green)]()
 [![p95 Latency](https://img.shields.io/badge/p95-0.019--0.029%20ms-orange)]()
 [![Throughput](https://img.shields.io/badge/Throughput-73k%2B%20evals%2Fsec-purple)]()
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey)]()
@@ -15,6 +15,8 @@ Version 0.3.0. Apache 2.0. TypeScript, Node.js 18/20/22.
 ---
 
 ## Why Aegis exists
+
+Built for platform, security, and AI infrastructure teams deploying tool-using agents into regulated or high-throughput production environments.
 
 Production agents need safety that does not break the product. The common approach, running a second LLM as judge on 100 percent of outbound traffic, fails on three counts at scale:
 
@@ -131,7 +133,7 @@ Labels were committed before measurement. The 90.2 percent figure is the balance
 
 ### Adversarial testing
 
-Six rounds of cross-family adversarial testing, conducted with Claude Sonnet 5.5 and Gemini 3.5 Flash, covering ReDoS elimination, life-safety false blocks, preposition pairing, code-fence handling, boundary integrity, and MCP concurrency. Each round is summarized in the repo history; the test suite reproduces the checks offline.
+Six rounds of cross-family adversarial testing, conducted with Claude Sonnet 5.5 and Gemini 3.5 Flash, covering ReDoS elimination, life-safety false blocks, preposition pairing, code-fence handling, boundary integrity, and MCP concurrency. Each round is documented in [docs/audits/](docs/audits/); the test suite reproduces the checks offline.
 
 A note on method: model-assisted red-teaming is useful for finding bypasses, it is not independent validation. The held-out numbers above are the empirical claim. The adversarial rounds are the hardening process behind them.
 
@@ -306,7 +308,7 @@ Aletheia Aegis is authored by Vikas Shivpuriya as part of the Aletheia AI Safety
 ```bibtex
 @software{shivpuriya2026aegis,
   author       = {Vikas Shivpuriya},
-  title        = {Aletheia Aegis: Architecture for Autonomous Agent Safety and Runtime Enforcement},
+  title        = {Aletheia Aegis: Runtime Enforcement for Autonomous Agent Outputs},
   year         = {2026},
   publisher    = {GitHub},
   version      = {0.3.0},
