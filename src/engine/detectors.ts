@@ -565,9 +565,10 @@ function inCodeContext(text: string, start: number, end: number, fences: FenceIn
  * happens to contain a dot (`password: hunter2.Tx9`) is still flagged.
  */
 /** "password is X" in prose; the value is screened in detectS3. */
-// Bounded, single-line whitespace: "\s*:?\s+" could split a long run of
-// spaces in every possible way (quadratic); "(?:[ \t]{0,10}:)?[ \t]{1,10}" can't.
-const CREDENTIAL_IS_RE = /\b(password|passcode|passphrase|api[ _-]?key|secret[ \t]{1,10}key|access[ \t]{1,10}token|auth[ \t]{1,10}token)[ \t]{1,10}(?:is|was|will[ \t]{1,10}be|has[ \t]{1,10}been[ \t]{1,10}(?:set|reset|changed)[ \t]{1,10}to|reset[ \t]{1,10}to)(?:[ \t]{0,10}:)?[ \t]{1,10}["'`]?([^\s"'`,;()]{8,64})/gi;
+// Bounded whitespace: allows spaces, tabs, or a single newline before the value,
+// with or without a trailing colon. Disjunction is mutually exclusive on colon presence to avoid backtracking.
+const CREDENTIAL_IS_RE =
+  /\b(password|passcode|passphrase|api[ _-]?(?:key|secret|token)|client[ _-]?secret|app[ _-]?secret|secret[ \t]{1,10}key|access[ \t]{1,10}token|auth[ \t]{1,10}token|bearer[ \t]{1,10}token)[ \t]{1,10}(?:is|was|will[ \t]{1,10}be|has[ \t]{1,10}been[ \t]{1,10}(?:set|reset|changed)[ \t]{1,10}to|reset[ \t]{1,10}to)(?:[ \t]{0,10}:(?:\r?\n|[ \t]){0,10}|(?:\r?\n|[ \t]){1,10})["'`]?([^\s"'`,;()]{8,64})/gi;
 const CREDENTIAL_REFERENCE_RE =
   /^(?:\$\{?[A-Za-z_][\w]*\}?|(?:process\.env|import\.meta\.env|Deno\.env|os\.environ|os\.getenv|System\.getenv|ENV\[|env\(|getenv\(|(?:config|conf|cfg|settings|secrets|options|opts|credentials|creds|vault|self|this)\s*[.\[]))/;
 /** A connection-string template whose password slot is a placeholder. */
@@ -1302,7 +1303,7 @@ const CRISIS_LOCATION_RE = new RegExp(String.raw`\b(?:` +
   // In front of / under a vehicle; onto the tracks or into traffic; into a
   // tree or wall. Not "onto the train/bus": that is boarding it.
   String.raw`|(?:${CL_FALL_VERB}|${CL_WALK})\s+(?:in\s+front\s+of|under(?:neath)?)\s+${CL_DET}(?:trains?|subway|bus(?:es)?|trucks?|traffic|cars?|trams?|metro)` +
-  String.raw`|(?:${CL_FALL_VERB}|${CL_WALK})\s+(?:onto|on\s+to|into)\s+${CL_DET}(?:tracks|rails|railway\s+line|traffic|highway|freeway|motorway)` +
+  String.raw`|(?:${CL_FALL_VERB}|${CL_WALK}|sit(?:s|ting)?)\s+(?:onto|on\s+to|on|into)\s+${CL_DET}(?:tracks|rails|railway\s+line|traffic|highway|freeway|motorway)` +
   String.raw`|(?:${CL_FALL_VERB}|${CL_WALK})\s+into\s+${CL_DET}(?:trees?|walls?|barriers?|pillars?)` +
   String.raw`|(?:lie|lay|lying)(?:\s+down)?\s+(?:on|across)\s+${CL_DET}(?:tracks|rails|road|highway)` +
   String.raw`|(?:go(?:es|ing)?|went|head(?:s|ing)?)\s+(?:up\s+)?to\s+${CL_DET}(?:tracks|roof|rooftop|ledge)${CL_NOT_VENUE}` +
