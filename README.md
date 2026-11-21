@@ -1,4 +1,4 @@
-# Aletheia Aegis
+# Aletheia Aegis: Architecture for Autonomous Agent Safety & Runtime Enforcement
 
 > **Sub-millisecond output guardrails and safety runtime for autonomous AI agents and frontier LLMs.**
 
@@ -331,7 +331,7 @@ To cite the Aletheia taxonomy, runtime architecture, or empirical findings in re
 ```bibtex
 @software{shivpuriya2026aegis,
   author       = {Vikas Shivpuriya},
-  title        = {Aletheia Aegis: Sub-Millisecond Output Guard and Evaluation Harness for Autonomous Agent Safety},
+  title        = {Aletheia Aegis: Architecture for Autonomous Agent Safety and Runtime Enforcement},
   year         = {2026},
   publisher    = {GitHub},
   version      = {0.3.0},
