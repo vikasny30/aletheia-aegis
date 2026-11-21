@@ -1,39 +1,38 @@
-# Aletheia Aegis: Enterprise AI Output Governance Standard & Runtime Guard
+# Aletheia Aegis: Sub-Millisecond Output Guardrails & Safety Architecture for AI Agents
 
-### An Industry-Standard Reference Architecture for Autonomous Agent Safety & Runtime Compliance
+### The High-Throughput Safety Runtime for Frontier LLMs & Autonomous Systems
 **Architected & Directed by [Vikas Shivpuriya](https://github.com/vikasny30)**  
-*Technology Executive & AI Systems Architect | Creator of the Aletheia Behavioral Governance Framework*
+*Director / VP of Engineering & AI Systems | Creator of the Aletheia Architecture*
 
-[![Governance Standard](https://img.shields.io/badge/Standard-Aletheia%20AI%20Governance-0A66C2.svg)](#the-aletheia-governance-standard)
-[![Regulatory Compliance](https://img.shields.io/badge/Compliance-NIST%20AI%20RMF%20%7C%20EU%20AI%20Act%20%7C%20OWASP-7928CA.svg)](#enterprise-compliance--regulatory-alignment)
-[![Architecture](https://img.shields.io/badge/Architecture-Dual--Layer%20Agentic%20Defense-4F46E5.svg)](#executive-overview--architectural-thesis)
-[![Latency SLA](https://img.shields.io/badge/p95%20SLA-0.019%20ms-10B981.svg)](#production-slas--benchmarks)
+[![Architecture](https://img.shields.io/badge/Architecture-Aletheia%20Safety%20Runtime-4F46E5.svg)](#architectural-thesis-the-latency--reliability-wall)
+[![Layer](https://img.shields.io/badge/Layer-Autonomous%20Output%20Guardrails-blue.svg)](#the-aletheia-architecture-dual-layer-defense)
+[![p95 Latency](https://img.shields.io/badge/p95%20Latency-0.019%20ms-10B981.svg)](#production-slas--benchmarks)
 [![Throughput](https://img.shields.io/badge/Throughput-73%2C000%2B%20evals%2Fsec-2563EB.svg)](#production-slas--benchmarks)
 [![MCP Protocol Compliant](https://img.shields.io/badge/MCP-2024--11--05-blue.svg)](https://modelcontextprotocol.io)
 [![License](https://img.shields.io/badge/License-Apache%202.0-F59E0B.svg)](LICENSE)
-[![Zero PII Retention](https://img.shields.io/badge/Privacy-Zero%20Data%20Retention-059669.svg)](#enterprise-privacy--zero-leak-guarantee)
+[![Zero PII Retention](https://img.shields.io/badge/Security-Zero%20Data%20Retention-059669.svg)](#data-security--zero-leak-guarantee)
 
 ---
 
-## Executive Overview & Architectural Thesis
+## Architectural Thesis: The Latency & Reliability Wall
 
-Enterprise adoption of generative AI and autonomous agentic systems faces a fundamental governance bottleneck: **how to enforce non-negotiable safety boundaries, data protection laws, and institutional compliance without crippling system throughput or ballooning inference costs**.
+As autonomous AI agents are deployed into mission-critical production stacks, engineering teams face a fundamental systems bottleneck: **how to enforce non-negotiable safety boundaries and prevent catastrophic failures without destroying runtime performance or multiplying inference costs.**
 
-The prevailing industry pattern—deploying recursive "LLM-as-a-judge" evaluators on 100% of outbound model traffic—presents severe enterprise liabilities:
-- **Excessive Latency Overhead:** 1,000 ms to 4,000 ms delays per user turn destroy real-time conversational and streaming agent performance.
-- **Volatile Unit Economics:** Calling secondary frontier models for safety reviews introduces unsustainable recurring cloud spend ($0.002 to $0.02 per evaluation, scaling to tens of thousands of dollars monthly at enterprise load).
-- **Non-Deterministic Security:** Relying on probabilistic models to catch probabilistic model failures leaves the enterprise open to prompt injection, semantic jailbreaks, and evaluative drift.
+The common industry shortcut of deploying recursive **"LLM-as-a-judge"** evaluators on 100% of outbound model traffic fails at production scale:
+- **Destroys Real-Time UX:** A 1,000 ms to 4,000 ms latency penalty per turn completely breaks conversational streaming and multi-step agentic execution loops.
+- **Unsustainable Cloud Unit Economics:** Chaining secondary frontier models for every outbound payload turns safety into a cost center ($0.002 to $0.02 per evaluation, ballooning to tens of thousands of dollars monthly at scale).
+- **Probabilistic Fragility:** Using a probabilistic model to police another probabilistic model introduces prompt-injection vulnerabilities, evaluator hallucination, and nondeterministic bypasses.
 
-**Aletheia Aegis** establishes an enterprise-grade architectural standard: **Deterministic Edge Guardrails with Fail-Closed Invariants**.
+**Aletheia Aegis sets the engineering standard for production AI safety:** a **deterministic, sub-millisecond edge firewall (<0.02 ms p95)** that enforces fail-closed invariants at wire speed, combined with an optional, pre-redacted tier for semantic evaluation.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 ENTERPRISE CLIENT APPLICATION                                   │
+│                                 HOST APPLICATION / AGENT RUNTIME                                │
 └───────────────────────────────────────────────┬─────────────────────────────────────────────────┘
-                                                │ Raw Model Response Payload
+                                                │ Raw Model Response Stream
                                                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                       ALETHEIA AEGIS: RUNTIME GOVERNANCE PLATFORM                               │
+│                          ALETHEIA AEGIS: RUNTIME SAFETY PLATFORM                                │
 │                                                                                                 │
 │  ┌───────────────────────────────────────────────────────────────────────────────────────────┐  │
 │  │  STAGE 1: Deterministic DFA & Structural Engine (Sub-Millisecond Wire-Speed Gate)          │  │
@@ -73,17 +72,15 @@ The prevailing industry pattern—deploying recursive "LLM-as-a-judge" evaluator
                                                               └───────────────────────────┘
 ```
 
-Aegis enforces a strict division of governance layers:
-1. **Deterministic Edge Filter (Wire-Speed Pre-Filter):** Executes in **under 0.02 ms (p95)** on CPU. Irreversible liabilities—such as credential leakage (API keys, SSNs, bank accounts) and life-safety violations (self-harm methods)—trigger an un-overrulable **BLOCK** locally. Upstream models are never called; zero payload leaves the boundary.
-2. **Optional Tier-2 Semantic Judge (Cryptographically Pre-Redacted):** For nuanced epistemic ambiguity, an external model judge (Anthropic, OpenAI, Gemini) may be invoked under strict rubrics. Aegis enforces enterprise defense-in-depth: **all detected secrets are masked prior to egress**, **life-safety findings can never be overruled**, and **heuristic defenses neutralize reviewer-targeted prompt injections**.
-
-Aegis is the output-governance counterpart to **[aletheia-mcp](https://github.com/vikasny30/aletheia-mcp)** (which enforces tool-execution and scope-creep boundaries). Together, they establish a unified operational standard across the agentic lifecycle.
+Aegis enforces a clean separation of concerns:
+1. **Deterministic Edge Engine (Wire-Speed Pre-Filter):** Evaluates outputs in **0.019 ms (p95)** on CPU. Irreversible failures—credential leaks (API keys, private keys, database credentials) and life-safety violations (self-harm methods)—trigger an immediate **HARD BLOCK**. Upstream judge models are skipped entirely, saving cost and eliminating payload exfiltration.
+2. **Optional Stage 2 Semantic Judge (Cryptographically Pre-Redacted):** For subjective or complex epistemic checks, an external model judge (Anthropic, OpenAI, Gemini) can be called under strict rubrics. Aegis enforces defense-in-depth: **all detected secrets are masked before payload dispatch**, **life-safety findings can never be overruled**, and **heuristic defenses catch reviewer-targeted prompt injections**.
 
 ---
 
-## The Aletheia Governance Standard
+## The Aletheia Architecture: Dual-Layer Defense
 
-The Aletheia framework defines nine foundational behavioral failure signatures across the modern AI interaction lifecycle, empirically validated against **2,571 incident records** from the AI Incident Database (AIID), AVID, and the MIT AI Risk Repository:
+The Aletheia framework standardizes nine core failure signatures across the modern agentic interaction lifecycle, empirically validated against **2,571 real-world incident records** (AI Incident Database, AVID, MIT AI Risk Repository):
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -103,41 +100,28 @@ The Aletheia framework defines nine foundational behavioral failure signatures a
 └───────────┴──────────────────────────────────────┴──────────────────────┴─────────────────────┘
 ```
 
-### Architectural Separation of Concerns
-To prevent monolithic failure, the Aletheia architecture splits **S3** by operational layer:
-- **Action Plane ([aletheia-mcp](https://github.com/vikasny30/aletheia-mcp)):** Intercepts autonomous tool execution (Bash commands, filesystem mutations, database writes, SSRF network requests) *before* execution occurs.
-- **Output Plane ([aletheia-aegis](https://github.com/vikasny30/aletheia-aegis)):** Inspects generated token streams (SSNs, API keys, credentials, private keys, Luhn-valid cards) *before* presentation to users.
-
----
-
-## Enterprise Compliance & Regulatory Alignment
-
-Aletheia Aegis provides compliance officers, CISOs, and enterprise architects with turnkey operational controls mapped directly to global AI governance frameworks:
-
-| Global Standard | Regulatory Requirement | How Aletheia Aegis Satisfies It |
-|---|---|---|
-| **NIST AI RMF 1.0** | **Govern 1.2, Measure 2.5, Manage 2.4** | Enforces repeatable, deterministic thresholds with mathematical ReDoS proofs; exports verifiable microsecond audit metrics (`aegis_get_telemetry`). |
-| **EU AI Act** | **Article 14 (Human Oversight), Article 15 (Cybersecurity & Robustness)** | Hard fail-closed invariants prevent irreversible output harm; dual-layer architecture prevents adversarial prompt injections from compromising judges. |
-| **OWASP Top 10 for LLMs** | **LLM01 (Prompt Injection), LLM02 (Data Leakage), LLM06 (Excessive Agency)** | Masks PII before judge ingestion; enforces immediate blocking on card/key/SSN exposures; isolates tool actions via companion MCP gateway. |
-| **ISO/IEC 42001** | **A.6 (AI Risk Assessment), A.8 (System Integrity)** | Zero data retention guarantee ensures full GDPR/CCPA alignment while maintaining immutable telemetry counters. |
+### Decoupling Actions from Outputs
+To prevent single-point-of-failure vulnerabilities, the Aletheia architecture splits **S3** by operational layer:
+- **Action Plane ([aletheia-mcp](https://github.com/vikasny30/aletheia-mcp)):** Guards tool execution (Bash commands, filesystem mutations, database writes, SSRF network calls) *before* execution occurs.
+- **Output Plane ([aletheia-aegis](https://github.com/vikasny30/aletheia-aegis)):** Guards generated token streams (SSNs, API keys, credentials, private keys, Luhn-valid cards) *before* presentation to users.
 
 ---
 
 ## Production SLAs & Benchmarks
 
-Benchmarked across enterprise Linux x86_64 and macOS Apple Silicon server environments:
+Benchmarked in production server environments (`Linux x86_64` and `Apple Silicon`, Node.js 18/20/22):
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                              PRODUCTION RUNTIME SLA PROFILE                            │
 ├────────────────────────────────────────┬─────────────────────┬─────────────────────────┤
-│ Evaluation Metric                      │ Measured Performance│ Enterprise Benchmark    │
+│ Evaluation Metric                      │ Measured Performance│ Systems Benchmark       │
 ├────────────────────────────────────────┼─────────────────────┼─────────────────────────┤
 │ **p50 Latency (Deterministic Filter)** │ **0.009 – 0.012 ms**│ ~10 microseconds        │
 │ **p95 Latency (Deterministic Filter)** │ **0.019 – 0.029 ms**│ Sub-30 microseconds     │
 │ **Peak Throughput Capacity**           │ **73,080+ evals/sec**│ Single core, unbatched  │
 │ **Concurrent Re-Entrancy Throughput**  │ **4,815+ evals/sec**│ 120 async tasks/event-loop│
-│ **Benign False-Positive Rate**         │ **0.0% (0 / 90)**   │ Zero business disruption│
+│ **Benign False-Positive Rate**         │ **0.0% (0 / 90)**   │ Zero false alarms       │
 │ **Evaluated Test Corpus Consistency**  │ **100% (215 / 215)**│ Zero regression         │
 │ **Held-Out Corpus Catch Rate**         │ **90.2% (Balanced)**│ Batches 10–11 replayed  │
 │ **System Memory Footprint**            │ **<35 MB RSS**      │ Zero native C++ compile │
@@ -148,7 +132,7 @@ Benchmarked across enterprise Linux x86_64 and macOS Apple Silicon server enviro
 
 ## Signature Enforcement Matrix
 
-Aegis enforces rigorous behavioral guardrails across all output failure signatures:
+Aegis enforces rigorous behavioral guardrails across output failure signatures:
 
 | Signature | Failure Mode | Enforced Rule & Remediation | Action |
 |---|---|---|---|
@@ -162,7 +146,7 @@ Aegis enforces rigorous behavioral guardrails across all output failure signatur
 
 ---
 
-## Enterprise Privacy & Zero-Leak Guarantee
+## Data Security & Zero-Leak Guarantee
 
 Aletheia Aegis is engineered under strict **zero data retention** principles:
 - **No Response Text in Audit Trails:** Telemetry, audit summaries, and metrics logs never store raw response or prompt strings. Only deterministic verdict counters, signature IDs, and execution timings are recorded.
@@ -172,9 +156,9 @@ Aletheia Aegis is engineered under strict **zero data retention** principles:
 
 ---
 
-## 90-Second Deployment & Integration
+## Deployment & Integration
 
-### 1. Zero-Install CLI Verification
+### 1. Fast CLI Verification
 Evaluate arbitrary model payloads immediately via `npx`:
 ```bash
 # Verify output against prescriptive medical directives (S5)
@@ -187,7 +171,7 @@ npx aletheia-aegis --check "Database connection: postgres://admin:secretKey98765
 ```
 
 ### 2. Standard MCP Server (Claude Desktop, Cursor, Cline, OpenRouter)
-Add to your enterprise MCP configuration (`claude_desktop_config.json`):
+Add to your MCP configuration (`claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -229,13 +213,13 @@ const assessment = evaluateOutput({
 });
 
 if (assessment.verdict === "BLOCK") {
-  // Fail-closed enterprise gate: reject immediately
+  // Fail-closed gate: reject immediately
   metrics.increment("safety.hard_block", { signature: assessment.findings[0].signature });
   throw new SecurityPolicyException("Generation blocked: " + assessment.explanation);
 }
 
 if (assessment.verdict === "FLAG") {
-  // Append mandatory regulatory disclaimers or route to async audit queue
+  // Append disclaimers or route to async audit queue
   auditPipeline.logEvent({ findings: assessment.findings, latencyMs: assessment.latencyMs });
 }
 ```
@@ -268,7 +252,7 @@ Aegis v0.3.0 has undergone **six formal rounds of independent cross-family adver
 
 ## Operational Boundaries & Threat Model
 
-In enterprise AI safety engineering, transparency regarding detection boundaries is critical:
+In production AI safety engineering, transparency regarding detection boundaries is critical:
 
 - **Deterministic Pre-Filter Model:** Aegis is designed as an ultra-fast, first-line wire filter, not a formal semantic parser or proof of completeness. Highly novel or deliberately obfuscated adversarial paraphrases can evade pattern-based heuristics. Aegis catches 90%+ of common and severe failure classes with microsecond overhead, freeing downstream systems to focus on nuanced edge cases.
 - **Prose Credential Screening (S3):** To eliminate false alarms on conversational discourse, `CREDENTIAL_IS_RE` requires non-word or complex token characteristics (mixed case, digits, symbols). Single dictionary words ("your password is password") deliberately pass. Card numbers require valid card-brand prefixes and pass Luhn checks. Bank accounts require banking context tokens to avoid blocking utility bills or gym account numbers.
@@ -340,18 +324,18 @@ npm run benchmark          # 10,000-iteration microsecond latency benchmark
 
 ---
 
-## Leadership, Research & Engineering Stewardship
+## Engineering Leadership & Research Stewardship
 
 **Aletheia Aegis** is authored and architected by **[Vikas Shivpuriya](https://github.com/vikasny30)** as part of the **Aletheia AI Safety Research Core**.
 
-### Architectural Leadership & Governance Positioning
-Vikas Shivpuriya is a **Technology Executive, Director of Engineering, and AI Systems Architect** specializing in enterprise agentic safety, deterministic runtime governance, and production LLM guardrails. His work focuses on establishing the rigorous infrastructure standards required for safe enterprise autonomy:
-- **Framework Creator**: Architect of the **Aletheia Taxonomy**, translating empirical failure distributions across 2,571 incidents into production-grade governance primitives.
+### Architectural Leadership & Systems Vision
+Vikas Shivpuriya is a **Director / VP of Engineering and AI Systems Architect** specializing in production agentic safety, deterministic runtime guardrails, and high-throughput AI infrastructure:
+- **Framework Creator**: Architect of the **Aletheia Taxonomy**, translating empirical failure distributions across 2,571 incidents into production-grade safety primitives.
 - **Architectural Pioneer**: Originated the **Dual-Layer Agent Guardrail Paradigm**, separating execution-layer tool interception (`aletheia-mcp`) from generation-layer output validation (`aletheia-aegis`).
-- **Production Realist**: Champion of **Zero-Overhead Deterministic Governance**, eliminating the multi-second latency and prohibitive costs of recursive LLM evaluation in favor of sub-millisecond, ReDoS-hardened stateful filters.
+- **Production Realist**: Champion of **Zero-Overhead Deterministic Guardrails**, eliminating the multi-second latency and prohibitive costs of recursive LLM evaluation in favor of sub-millisecond, ReDoS-hardened stateful filters.
 
 ### Citation & Academic Attribution
-To cite the Aletheia taxonomy, runtime architecture, or empirical findings in research or enterprise technical documentation:
+To cite the Aletheia taxonomy, runtime architecture, or empirical findings in research or technical documentation:
 
 ```bibtex
 @software{shivpuriya2026aegis,
