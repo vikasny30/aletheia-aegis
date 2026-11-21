@@ -1,6 +1,6 @@
-# Aletheia Aegis: Runtime Enforcement for Autonomous Agent Outputs
+# Aletheia Aegis: Inference-Time Output Enforcement for Autonomous Agents
 
-> A deterministic, sub-millisecond guard for model outputs. Fail-closed on irreversible harm, fast enough to sit on every response, with an optional semantic judge for the cases patterns cannot settle.
+> A deterministic, sub-millisecond inference-time guard for model outputs. Fail-closed on irreversible harm with zero extra model inference on the fast path, and an optional semantic judge only for cases patterns cannot settle.
 
 [![Architecture](https://img.shields.io/badge/Architecture-Aletheia%20Safety%20Runtime-blue)]()
 [![Layer](https://img.shields.io/badge/Layer-Output%20Enforcement-green)]()
@@ -24,7 +24,9 @@ Production agents need safety that does not break the product. The common approa
 2. **Cost.** A secondary frontier model on every payload turns safety into a cost center, roughly $0.002 to $0.02 per evaluation, tens of thousands of dollars monthly at scale.
 3. **Reliability.** A probabilistic model policing another probabilistic model inherits prompt injection, evaluator hallucination, and nondeterministic bypasses.
 
-Aegis takes the opposite starting point: enforce the non-negotiable invariants deterministically, at wire speed, and reserve model judgment for the small set of cases where semantics actually matter.
+Even smaller dedicated guardrail models (such as Llama Guard or classifier checkpoints) still add GPU infrastructure, tens of milliseconds of inference overhead, and probabilistic variance to every response.
+
+Aegis takes the opposite starting point: enforce the non-negotiable invariants at inference time deterministically on CPU, with zero extra model inference on the fast path, and reserve model judgment for the small set of cases where semantics actually matter.
 
 That is the core design bet. Deterministic first, semantic second, fail-closed throughout.
 
