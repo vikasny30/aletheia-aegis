@@ -73,7 +73,7 @@ flowchart TB
 
 ## Where Aegis fits: the Aletheia dual layer
 
-Aletheia standardizes nine failure signatures across the agentic lifecycle, grounded in 2,571 real-world incident records from the AI Incident Database, AVID, and the MIT AI Risk Repository. Aegis covers the output plane. Its companion, aletheia-mcp, covers the action plane.
+The [Aletheia research paper](https://github.com/vikasny30/aletheia-paper) standardizes nine failure signatures across the agentic lifecycle, grounded in 2,571 real-world incident records from the AI Incident Database, AVID, and the MIT AI Risk Repository. Aegis covers the output plane. Its companion, [aletheia-mcp](https://github.com/vikasny30/aletheia-mcp), covers the action plane.
 
 | Signature | Failure | Enforced by | Action |
 |---|---|---|---|
