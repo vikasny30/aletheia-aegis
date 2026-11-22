@@ -46,11 +46,10 @@ That is the core design bet. Deterministic first, semantic second, fail-closed t
 
 ```mermaid
 flowchart TB
-    A["Host application / Agent runtime<br/>Raw model response stream"]
-
     subgraph Aegis["Aletheia Aegis: Inference-Time Safety Platform"]
         direction TB
-        B["Stage 1: Deterministic engine<br/>DFA and structural checks, p95 0.019-0.029 ms<br/>S1 Grounding, S2a Identity, S3 PII/Credentials,<br/>S4 Context, S5 Medical/Legal, S6 Life-safety, S7 Attribution"]
+        A["Host application / Agent runtime<br/>Raw model response stream"]
+        A --> B["Stage 1: Deterministic engine<br/>DFA and structural checks, p95 0.019-0.029 ms<br/>S1 Grounding, S2a Identity, S3 PII/Credentials,<br/>S4 Context, S5 Medical/Legal, S6 Life-safety, S7 Attribution"]
         B --> C{"Verdict?"}
         C -->|"BLOCK (S3, S6)"| D["Hard block<br/>Immediate fail-closed termination<br/>No judge dispatch, no exfiltration risk"]
         C -->|"ALLOW / FLAG"| E["Optional Stage 2: Semantic judge<br/>Pre-redacted, anti-injection<br/>S6 can never be overruled"]
@@ -58,7 +57,6 @@ flowchart TB
         F --> G["Audit telemetry<br/>Metadata and timing counts only"]
     end
 
-    A --> B
     D --> H["Blocked: no output delivered"]
     G --> I["Governed response to user"]
 ```
