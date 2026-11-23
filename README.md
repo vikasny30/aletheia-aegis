@@ -288,10 +288,10 @@ Everything runs offline:
 npm install
 npm run build              # Compile TypeScript (tsc)
 npm test                   # Core unit checks + eval assertions (45 checks)
-npm run test:judge         # Model judge, security, ReDoS tests (121 checks)
+npm run test:judge         # Model judge, security, ReDoS tests (123 checks)
 npm run test:mcp           # MCP stdio smoke test (13 checks)
-npm run test:mcp:adversarial # MCP stdio protocol fuzzing and sandboxing (11 checks)
-npm run test:stress        # Concurrency and re-entrancy stress (120 tasks)
+npm run test:mcp:adversarial # MCP stdio protocol edges, file sandbox, 60 concurrent calls (14 checks)
+npm run test:stress        # Async re-entrancy: 200 interleaved judge/Crossref checks vs a sequential run
 npm run test:leak          # Zero-leak PII/secret verification
 npm run test:fp            # False-positive sweep on benign discourse (90 cases)
 npm run eval               # Full 215-case benchmark (100 percent pass)

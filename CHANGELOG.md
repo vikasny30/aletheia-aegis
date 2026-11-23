@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Crossref lookup stays within its time budget under rate limiting.** The 429 back-off (1.5 s, then 3 s) ignored the overall budget, so a rate-limited check could run about 5 s past `LOOKUP_BUDGET_MS` (a 2 s budget took 4.8 s). The back-off now never sleeps past the deadline; a regression test covers it.
+- **Round-6 tests now test what they claim.** `test:mcp:adversarial` checks multi-byte UTF-8 split across reads, that `block_checks` escalation applies only to the named check and only for that call (the old prototype check looked at the test process, not the server), the server's actual handling of malformed and batch frames (dropped without a reply, server stays up), `-32601` for unknown methods, `.jsonl` symlink escapes, the 10,000-case cap, 60 concurrent calls with exact telemetry counts, and closing stdin with a call in flight. `test:stress` was a synchronous loop that could not interleave; it now suspends 200 judge and Crossref checks at once with randomly delayed stubs and requires every result to match a sequential run. `test:judge` adds checks that citation resolvers never follow redirects and only contact the resolvers.
+- **README corrections.** The held-out set is 917 outputs from 48 models (575 was batches 1–8 only); the 4,815 evals/sec "concurrent throughput" figure came from the old stress test's sleeps and is removed; memory is the measured ~64 MB idle server RSS (Node 26, macOS arm64), not "under 35 MB"; latency and throughput are given as ranges with the machine named; patterns-only numbers sit next to the 90.2% judge figure. The adversarial-test reports are no longer kept in the repo.
+
 ## 0.3.0 — 2026-11-20
 
 Measurement: every guardrail decision now carries its proof, as counts and timings only.

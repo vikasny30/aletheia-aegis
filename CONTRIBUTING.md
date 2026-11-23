@@ -33,7 +33,7 @@ Additional suites when touching specific surfaces:
 npm run test:mcp             # MCP stdio smoke test
 npm run test:mcp:adversarial # MCP protocol fuzzing and sandboxing
 npm run test:judge           # Tier-2 judge rubric, masking, and ReDoS tests
-npm run test:stress          # Concurrency and re-entrancy stress test
+npm run test:stress          # Async re-entrancy: interleaved judge/Crossref checks vs a sequential run
 npm run eval:redteam         # Adversarial paraphrase suite
 npm run benchmark            # 10,000-iteration latency benchmark
 ```

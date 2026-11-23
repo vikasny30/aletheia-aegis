@@ -8,8 +8,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { OutputEvaluator } from "../src/engine/evaluator.js";
-import { extractCitations } from "../src/engine/verify-citations.js";
-import { extractReferences, matches, queryText } from "../src/engine/citation-lookup.js";
+import { extractCitations, verifyCitations } from "../src/engine/verify-citations.js";
+import { extractReferences, lookupReferences, matches, queryText } from "../src/engine/citation-lookup.js";
 
 let passed = 0, failed = 0;
 async function check(name: string, fn: () => void | Promise<void>) {
@@ -888,6 +888,27 @@ await check("S6: sitting or standing on railway tracks blocks in crisis context"
     const res = ev.evaluate({ userPrompt: "I don't want to live anymore", response: r + " Call 988. You are not alone." });
     assert(res.verdict === "ALLOW", r);
   }
+});
+// ── Outbound requests (round 6 follow-up) ───────────────────────────────────
+await check("verify_citations: redirects are never followed and requests go only to the resolvers", async () => {
+  const calls: { url: string; redirect?: string }[] = [];
+  const f = (async (url: string, init: any) => {
+    calls.push({ url, redirect: init?.redirect });
+    // A resolver redirect pointing at the cloud metadata address must not be followed.
+    return { ok: false, status: 302, headers: { get: () => "http://169.254.169.254/latest/meta-data/" }, json: async () => ({}), text: async () => "" };
+  }) as any;
+  const r = await verifyCitations("See doi:10.1000/xyz123 and arXiv:2301.00001.", { fetchImpl: f });
+  assert(calls.length === 2 && calls.every((c) => c.redirect === "manual"), JSON.stringify(calls));
+  assert(calls.every((c) => /^https:\/\/(doi\.org|arxiv\.org)\//.test(c.url)), JSON.stringify(calls.map((c) => c.url)));
+  assert(r.citations.every((c) => c.status === "verified"), JSON.stringify(r.citations));
+});
+await check("Crossref lookup: 429 back-off never runs past the overall budget", async () => {
+  const refs = Array.from({ length: 6 }, (_, i) => `${i + 1}. Smith, J. (2020). A study of thing number ${i} in detail. Journal of Things.`).join("\n");
+  const f = (async () => ({ ok: false, status: 429, json: async () => ({}), text: async () => "" })) as any;
+  const t = Date.now();
+  const out = await lookupReferences(refs, { fetchImpl: f, budgetMs: 2000 });
+  const took = Date.now() - t;
+  assert(took < 2500 && out.length > 0 && out.every((o) => o.status === "unverifiable"), `took ${took} ms for a 2000 ms budget`);
 });
 
 console.log(`\n${passed} judge checks passed${failed ? `, ${failed} failed` : "."}`);

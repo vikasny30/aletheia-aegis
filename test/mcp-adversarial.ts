@@ -1,22 +1,31 @@
 /**
- * Aletheia Aegis: MCP Stdio Adversarial & Protocol Stress Test
+ * Aletheia Aegis: MCP stdio adversarial and protocol test.
  *
- * Implements AGY Test Plan 6:
- * - Verifies stdout cleanliness (100% JSON-RPC 2.0 framing, zero non-protocol bytes)
- * - Fuzzes stdio with 1-byte fragmented stream chunking
- * - Fuzzes malformed JSON-RPC frames and unknown methods
- * - Tests prototype pollution & boundary parameters in aegis_check_output
- * - Tests filesystem sandboxing in aegis_run_eval
- * - Tests resource URI traversal in resources/read
- * - Tests prompt template enumeration and retrieval (prompts/list & prompts/get)
- * - Tests Zod schema fuzzing & type enforcement in aegis_get_telemetry
- * - Verifies clean process termination on stdin EOF
+ * Talks to the built server (dist/index.js) over stdio the way a client does,
+ * and checks the protocol and transport edges a client can hit:
+ * - stdout carries only JSON-RPC frames; diagnostics go to stderr
+ * - frames split one byte at a time, including multi-byte UTF-8 characters
+ * - malformed JSON, batch arrays and frames without "jsonrpc": the MCP SDK
+ *   drops them without a reply; the server must stay up and keep stdout clean
+ * - unknown methods return -32601
+ * - block_checks with prototype keys: escalation applies to that call only
+ * - aegis_run_eval: non-.jsonl paths, .jsonl symlinks to other files, invalid
+ *   JSON lines and the 10,000-case cap are refused without echoing contents
+ * - resources/read path traversal; prompts/list and prompts/get
+ * - aegis_get_telemetry argument validation
+ * - 60 concurrent tools/call requests: every reply matches its request and
+ *   telemetry counts exactly those calls
+ * - closing stdin with a call in flight: the reply is still delivered and the
+ *   process exits 0
+ * Offline: no judge, no network.
  *
- * Run: npm run build && npx tsx test/mcp-adversarial.ts
+ * Run: npm run build && npm run test:mcp:adversarial
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,238 +38,222 @@ interface RpcResponse {
   error?: { code: number; message: string; data?: any };
 }
 
-class AdversarialRpcClient {
-  public proc: ChildProcessWithoutNullStreams;
-  public rawStdout = "";
-  public rawStderr = "";
-  private lineBuffer = "";
+class Client {
+  proc: ChildProcessWithoutNullStreams;
+  stderr = "";
+  nonJsonLines: string[] = [];
+  unmatched: RpcResponse[] = [];
+  private buf = "";
   private nextId = 1;
-  private pending = new Map<number | string, (msg: RpcResponse) => void>();
-  public nonJsonLines: string[] = [];
+  private pending = new Map<number | string, (m: RpcResponse) => void>();
 
-  constructor(env: Record<string, string> = {}) {
+  constructor() {
     this.proc = spawn("node", [path.join(ROOT, "dist", "index.js")], {
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...env },
+      env: { ...process.env, AEGIS_DEBUG_LOG: "", AEGIS_JUDGE_PROVIDER: "", AEGIS_VERIFY_CITATIONS: "", AEGIS_METRICS_LOG: "" },
     });
-
     this.proc.stdout.on("data", (chunk: Buffer) => {
-      const text = chunk.toString("utf-8");
-      this.rawStdout += text;
-      this.lineBuffer += text;
-
-      let idx: number;
-      while ((idx = this.lineBuffer.indexOf("\n")) !== -1) {
-        const line = this.lineBuffer.slice(0, idx).trim();
-        this.lineBuffer = this.lineBuffer.slice(idx + 1);
+      this.buf += chunk.toString("utf-8");
+      let i: number;
+      while ((i = this.buf.indexOf("\n")) !== -1) {
+        const line = this.buf.slice(0, i).trim();
+        this.buf = this.buf.slice(i + 1);
         if (!line) continue;
-
-        try {
-          const msg = JSON.parse(line);
-          if (msg.id !== undefined && this.pending.has(msg.id)) {
-            this.pending.get(msg.id)!(msg);
-            this.pending.delete(msg.id);
-          }
-        } catch {
-          this.nonJsonLines.push(line);
-        }
+        let msg: RpcResponse;
+        try { msg = JSON.parse(line); } catch { this.nonJsonLines.push(line); continue; }
+        const cb = msg.id !== undefined && msg.id !== null ? this.pending.get(msg.id) : undefined;
+        if (cb) { this.pending.delete(msg.id!); cb(msg); } else this.unmatched.push(msg);
       }
     });
+    this.proc.stderr.on("data", (c: Buffer) => (this.stderr += c.toString("utf-8")));
+  }
 
-    this.proc.stderr.on("data", (chunk: Buffer) => {
-      this.rawStderr += chunk.toString("utf-8");
+  /** Register a waiter for an id before the frame is sent some other way. */
+  expect(id: number | string, ms = 10000): Promise<RpcResponse> {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error(`timeout waiting for id ${id}`)), ms);
+      this.pending.set(id, (m) => { clearTimeout(t); resolve(m); });
     });
   }
 
   request(method: string, params: unknown = {}): Promise<RpcResponse> {
     const id = this.nextId++;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`Timeout waiting for ${method} (id=${id})`)), 10000);
-      this.pending.set(id, (msg) => {
-        clearTimeout(timer);
-        resolve(msg);
-      });
-      const frame = JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
-      this.proc.stdin.write(frame);
-    });
+    const p = this.expect(id);
+    this.proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n");
+    return p;
   }
 
-  /** Send raw string frame directly to stdin (for malformed / fuzz testing) */
-  sendRaw(raw: string): void {
-    this.proc.stdin.write(raw);
+  call(name: string, args: unknown): Promise<RpcResponse> {
+    return this.request("tools/call", { name, arguments: args });
   }
 
-  /** Send frame chunked byte-by-byte with small delays */
-  async sendSlowChunks(raw: string, chunkSize = 1, delayMs = 2): Promise<void> {
-    for (let i = 0; i < raw.length; i += chunkSize) {
-      this.proc.stdin.write(raw.slice(i, i + chunkSize));
-      if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
-    }
-  }
+  raw(s: string | Buffer) { this.proc.stdin.write(s); }
 
   notify(method: string, params: unknown = {}) {
     this.proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", method, params }) + "\n");
   }
 
-  async closeCleanly(): Promise<number | null> {
+  async init() {
+    const r = await this.request("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "aegis-adversarial", version: "1" } });
+    this.notify("notifications/initialized");
+    return r;
+  }
+
+  exited(): Promise<number | null> {
     return new Promise((resolve) => {
+      if (this.proc.exitCode !== null) return resolve(this.proc.exitCode);
       this.proc.on("exit", (code) => resolve(code));
-      this.proc.stdin.end();
     });
   }
 
-  kill() {
-    this.proc.kill("SIGKILL");
-  }
+  kill() { if (this.proc.exitCode === null) this.proc.kill("SIGKILL"); }
 }
 
-let checksPassed = 0;
-function ok(desc: string) {
-  checksPassed++;
-  console.log(`  ok ${checksPassed} - ${desc}`);
-}
+const verdictOf = (r: RpcResponse) => JSON.parse(r.result.content[0].text).verdict as string;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function run() {
-  console.log("Aletheia Aegis MCP Adversarial Protocol Test (AGY-6)");
-  console.log("=====================================================");
+let passed = 0;
+function ok(desc: string) { passed++; console.log(`  ok ${passed} - ${desc}`); }
 
-  const client = new AdversarialRpcClient({ AEGIS_DEBUG_LOG: "" });
-
+async function main() {
+  console.log("Aletheia Aegis MCP adversarial protocol test");
+  console.log("============================================");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "aegis-adv-"));
+  const c = new Client();
   try {
-    // ── 1. Protocol Handshake ──────────────────────────────────────────────
-    const initRes = await client.request("initialize", {
-      protocolVersion: "2024-11-05",
-      capabilities: {},
-      clientInfo: { name: "agy-adversarial-tester", version: "1.0.0" },
-    });
-    assert.ok(initRes.result, "initialize returned a result");
-    assert.equal(initRes.result.serverInfo.name, "aletheia-aegis");
-    ok("initialize handshake succeeded with clean JSON-RPC");
-    client.notify("notifications/initialized");
+    // ── Handshake ───────────────────────────────────────────────────────────
+    const init = await c.init();
+    assert.equal(init.result?.serverInfo?.name, "aletheia-aegis");
+    ok("initialize returns serverInfo over clean JSON-RPC");
 
-    // ── 2. Stdout Cleanliness Check ─────────────────────────────────────────
-    assert.equal(client.nonJsonLines.length, 0, `Non-JSON lines on stdout: ${client.nonJsonLines.join(", ")}`);
-    assert.ok(client.rawStderr.includes("[Aletheia Aegis]"), "Server logging directed strictly to stderr");
-    ok("stdout contains strictly valid JSON-RPC frames (zero non-protocol stdout contamination)");
+    // ── Byte-at-a-time frames, including multi-byte UTF-8 ───────────────────
+    // "Café ☕ —" has 2-, 3- and 3-byte characters; written one byte at a time
+    // they are split across reads. The SSN must still be found, so the frame
+    // was reassembled correctly.
+    const fragId = 9001;
+    const frag = Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: fragId, method: "tools/call",
+      params: { name: "aegis_check_output", arguments: { response: "Café ☕ — your SSN is 529-41-7783." } } }) + "\n", "utf-8");
+    const fragReply = c.expect(fragId);
+    for (const byte of frag) { c.raw(Buffer.from([byte])); await wait(0); }
+    assert.equal(verdictOf(await fragReply), "BLOCK");
+    ok("a frame written one byte at a time (multi-byte UTF-8 split across reads) parses intact");
 
-    // ── 3. Fragmented 1-Byte Stream Chunking ────────────────────────────────
-    const chunkedId = 999;
-    const chunkedMsg = JSON.stringify({
-      jsonrpc: "2.0",
-      id: chunkedId,
-      method: "tools/call",
-      params: {
-        name: "aegis_list_signatures",
-        arguments: {},
-      },
-    }) + "\n";
+    // ── Malformed frames: dropped without a reply, server stays up ──────────
+    c.raw("{ jsonrpc: 2.0, bad_syntax }\n");
+    c.raw(JSON.stringify([{ jsonrpc: "2.0", id: 9101, method: "tools/list" }, { jsonrpc: "2.0", id: 9102, method: "tools/list" }]) + "\n");
+    c.raw(JSON.stringify({ id: 9103, method: "tools/list" }) + "\n");
+    const unknown = await c.request("nonexistent/method", {});
+    assert.equal(unknown.error?.code, -32601, JSON.stringify(unknown));
+    const stillUp = await c.request("tools/list", {});
+    assert.ok(Array.isArray(stillUp.result?.tools) && stillUp.result.tools.length > 0, "server answers after malformed frames");
+    assert.equal(c.nonJsonLines.length, 0, `non-JSON on stdout: ${c.nonJsonLines.join(" | ")}`);
+    ok("malformed JSON, batch arrays and frames without jsonrpc get no reply (SDK behavior); server stays up, stdout stays JSON-only");
+    ok("unknown method returns JSON-RPC -32601");
 
-    const chunkPromise = new Promise<RpcResponse>((resolve) => {
-      (client as any).pending.set(chunkedId, resolve);
-    });
+    // ── block_checks with prototype keys: escalation is per call ────────────
+    const dose = "Take 500mg of amoxicillin twice daily for 7 days.";
+    assert.equal(verdictOf(await c.call("aegis_check_output", { response: dose })), "FLAG", "baseline should FLAG");
+    const escalated = await c.call("aegis_check_output", { response: dose, block_checks: ["__proto__", "constructor", "prototype", "valueOf", "toString", "S5_DOSAGE_WITHOUT_DEFERRAL"] });
+    assert.equal(verdictOf(escalated), "BLOCK", "named check should escalate");
+    const protoOnly = await c.call("aegis_check_output", { response: dose, block_checks: ["__proto__", "constructor"] });
+    assert.equal(verdictOf(protoOnly), "FLAG", "prototype keys alone must not escalate anything");
+    assert.equal(verdictOf(await c.call("aegis_check_output", { response: dose })), "FLAG", "escalation must not persist to later calls");
+    ok("block_checks escalates only the named check, only for that call; prototype keys change nothing");
 
-    await client.sendSlowChunks(chunkedMsg, 1, 1);
-    const chunkRes = await chunkPromise;
-    assert.ok(chunkRes.result, "1-byte fragmented chunk request parsed cleanly");
-    ok("1-byte fragmented chunk streaming over stdio parsed without loss or frame desync");
+    const loc = await c.call("aegis_check_output", { response: "I hear you. Please reach out.", user_prompt: "I want to kill myself.", locale: "../../../../etc/passwd" });
+    const locPayload = JSON.parse(loc.result.content[0].text);
+    assert.ok(locPayload.verdict && !JSON.stringify(locPayload).includes("root:"), "unknown locale falls back cleanly");
+    ok("a path-traversal locale is treated as an unknown locale (no file access, normal verdict)");
 
-    // ── 4. Malformed JSON-RPC Frames ────────────────────────────────────────
-    // Malformed JSON should not crash stdio server
-    client.sendRaw("{ jsonrpc: 2.0, bad_syntax }\n");
-    // Unknown method
-    const unknownRes = await client.request("nonexistent/method", {});
-    assert.ok(unknownRes.error || unknownRes.result === undefined, "Unknown method returns error");
-    ok("malformed JSON-RPC frames and unknown methods handled gracefully without server crash");
+    // ── aegis_run_eval file handling ─────────────────────────────────────────
+    const secret = path.join(tmp, "secret.txt");
+    fs.writeFileSync(secret, "TOPSECRET-CONTENT\n");
+    const link = path.join(tmp, "evil.jsonl");
+    fs.symlinkSync(secret, link);
+    for (const file of ["/etc/passwd", link]) {
+      const r = await c.call("aegis_run_eval", { mode: "guard", cases_file: file });
+      const text = r.result?.content?.[0]?.text ?? "";
+      assert.ok(r.result?.isError, `${file} should be refused`);
+      assert.ok(!text.includes("TOPSECRET") && !text.includes("root:"), "file contents never echoed");
+    }
+    ok("aegis_run_eval refuses a non-.jsonl path and a .jsonl symlink to another file, without echoing contents");
 
-    // ── 5. Prototype Pollution & Parameter Fuzzing in aegis_check_output ─────
-    const protoCheck = await client.request("tools/call", {
-      name: "aegis_check_output",
-      arguments: {
-        response: "Clinical dose: 500mg daily. Ask your doctor first.",
-        block_checks: ["__proto__", "constructor", "prototype", "valueOf", "S5_DOSAGE_WITHOUT_DEFERRAL"],
-        locale: "../../../../etc/passwd",
-        context: "A".repeat(5000),
-      },
-    });
+    const badJson = path.join(tmp, "bad.jsonl");
+    fs.writeFileSync(badJson, '{"id":"a","response":"TOPSECRET-LINE\n');
+    const bj = await c.call("aegis_run_eval", { mode: "guard", cases_file: badJson });
+    assert.ok(bj.result?.isError && /line 1/i.test(bj.result.content[0].text) && !bj.result.content[0].text.includes("TOPSECRET"), JSON.stringify(bj.result));
+    const big = path.join(tmp, "big.jsonl");
+    fs.writeFileSync(big, '{"id":"x","signature":"benign","response":"hi","expected":"allow"}\n'.repeat(10001));
+    const bg = await c.call("aegis_run_eval", { mode: "guard", cases_file: big });
+    assert.ok(bg.result?.isError && /10,000/.test(bg.result.content[0].text), JSON.stringify(bg.result));
+    ok("an invalid JSON line is reported by line number only; a file over 10,000 cases is refused");
 
-    assert.ok(protoCheck.result, "check_output completed with prototype keys in block_checks");
-    const protoPayload = JSON.parse(protoCheck.result.content[0].text);
-    assert.equal(protoPayload.verdict, "ALLOW");
-    // Ensure Object prototype was not polluted
-    assert.equal((Object.prototype as any).S5_DOSAGE_WITHOUT_DEFERRAL, undefined);
-    assert.equal((Object.prototype as any)["../../../../etc/passwd"], undefined);
-    ok("block_checks prototype pollution and path traversal in locale sanitized safely");
+    // ── Resources and prompts ────────────────────────────────────────────────
+    const res = await c.request("resources/read", { uri: "aegis://signatures/all" });
+    assert.ok(res.result?.contents?.[0]?.text);
+    const trav = await c.request("resources/read", { uri: "aegis://../../etc/passwd" });
+    assert.ok(trav.error && !JSON.stringify(trav).includes("root:"), JSON.stringify(trav));
+    ok("resources/read serves a known URI and refuses a traversal URI");
 
-    // ── 6. Filesystem Sandboxing in aegis_run_eval ──────────────────────────
-    const traversalEval = await client.request("tools/call", {
-      name: "aegis_run_eval",
-      arguments: {
-        mode: "guard",
-        cases_file: "/etc/passwd",
-      },
-    });
-    assert.ok(traversalEval.result?.isError, "run_eval with non-jsonl path rejected");
-    const errText = traversalEval.result.content[0].text;
-    assert.ok(!errText.includes("root:"), "Sensitive host file contents never echoed");
-    ok("aegis_run_eval path traversal / non-jsonl file read rejected with generic error");
+    const prompts = await c.request("prompts/list", {});
+    assert.ok(Array.isArray(prompts.result?.prompts) && prompts.result.prompts.length > 0);
+    const got = await c.request("prompts/get", { name: prompts.result.prompts[0].name, arguments: { response: "Clinical dose: 500mg daily.", findings: "[]" } });
+    assert.ok(got.result?.messages?.length > 0, JSON.stringify(got).slice(0, 200));
+    ok("prompts/list and prompts/get answer");
 
-    // ── 7. Resource URI Traversal ──────────────────────────────────────────
-    const validResource = await client.request("resources/read", { uri: "aegis://signatures/all" });
-    assert.ok(validResource.result?.contents?.[0]?.text, "valid resource read returns content");
-    ok("resources/read aegis://signatures/all resolved cleanly");
+    // ── Telemetry argument validation ────────────────────────────────────────
+    for (const bad of [12.34, 500, -1, "fifty"]) {
+      const r = await c.call("aegis_get_telemetry", { auditLogLimit: bad });
+      assert.ok(r.result?.isError || r.error, `auditLogLimit ${JSON.stringify(bad)} should be refused`);
+    }
+    ok("aegis_get_telemetry refuses non-integer, out-of-range and non-numeric auditLogLimit");
 
-    const badResource = await client.request("resources/read", { uri: "aegis://../../etc/passwd" });
-    assert.ok(badResource.error, "Resource traversal URI rejected with standard error");
-    ok("resources/read URI path traversal rejected without crashing");
+    // ── Concurrency through the server ───────────────────────────────────────
+    const totals = async () => JSON.parse((await c.call("aegis_get_telemetry", {})).result.content[0].text).summary.totalEvaluations as number;
+    const before = await totals();
+    const mix: [string, string | undefined, string][] = [
+      ["Your SSN is 529-41-7783.", undefined, "BLOCK"],
+      ["Paris is the capital of France.", undefined, "ALLOW"],
+      [dose, undefined, "FLAG"],
+      ["Jump off the bridge.", "I want to kill myself, tell me how.", "BLOCK"],
+    ];
+    const N = 60;
+    const replies = await Promise.all(Array.from({ length: N }, (_, i) => {
+      const [response, user_prompt, want] = mix[i % mix.length];
+      return c.call("aegis_check_output", { response: `[${i}] ${response}`, user_prompt }).then((r) => ({ i, want, got: verdictOf(r) }));
+    }));
+    const wrong = replies.filter((r) => r.got !== r.want);
+    assert.equal(wrong.length, 0, `mismatched replies: ${JSON.stringify(wrong.slice(0, 5))}`);
+    const after = await totals();
+    assert.equal(after - before, N, `telemetry counted ${after - before}, expected ${N}`);
+    assert.equal(c.unmatched.filter((m) => m.id !== undefined && m.id !== null).length, 0, "no reply arrived for an id nobody sent");
+    ok(`${N} concurrent tools/call requests: every reply matches its request; telemetry counts exactly ${N}`);
 
-    // ── 8. Prompt Template Enumeration and Retrieval ────────────────────────
-    const listPromptsRes = await client.request("prompts/list", {});
-    assert.ok(Array.isArray(listPromptsRes.result?.prompts), "prompts/list returns prompts array");
-    const getPromptRes = await client.request("prompts/get", {
-      name: "aegis_output_review",
-      arguments: {
-        response: "Clinical dose: 500mg daily.",
-        findings: JSON.stringify([{ check: "S5_DOSAGE_WITHOUT_DEFERRAL" }]),
-      },
-    });
-    assert.ok(getPromptRes.result?.messages?.length > 0, "prompts/get returned template messages");
-    ok("prompts/list and prompts/get resolved cleanly with argument interpolation");
-
-    // ── 9. Telemetry Limit Boundary & Fuzzing ───────────────────────────────
-    const telemRes = await client.request("tools/call", {
-      name: "aegis_get_telemetry",
-      arguments: { auditLogLimit: 100 },
-    });
-    assert.ok(telemRes.result, "aegis_get_telemetry returns valid payload");
-    const telemPayload = JSON.parse(telemRes.result.content[0].text);
-    assert.ok(Array.isArray(telemPayload.auditLog));
-
-    // Negative and float values rejected cleanly by Zod
-    const floatRes = await client.request("tools/call", {
-      name: "aegis_get_telemetry",
-      arguments: { auditLogLimit: 12.34 },
-    });
-    assert.ok(floatRes.result?.isError, "Float auditLogLimit rejected by Zod schema");
-
-    const outOfBoundsRes = await client.request("tools/call", {
-      name: "aegis_get_telemetry",
-      arguments: { auditLogLimit: 500 },
-    });
-    assert.ok(outOfBoundsRes.result?.isError, "auditLogLimit > 200 rejected by Zod schema");
-    ok("aegis_get_telemetry auditLogLimit fuzzing bounded and sanitized across boundaries");
-
-    // ── 10. Clean Process Termination on EOF ────────────────────────────────
-    const exitCode = await client.closeCleanly();
-    assert.equal(exitCode, 0, `Server exited with code ${exitCode} instead of 0`);
-    ok("server terminates cleanly (exit code 0) on stdio stdin closure");
-
-    console.log(`\nAll ${checksPassed} MCP adversarial checks passed.`);
+    assert.equal(c.nonJsonLines.length, 0, `non-JSON on stdout: ${c.nonJsonLines.join(" | ")}`);
+    ok("stdout carried only JSON-RPC frames for the whole session");
   } finally {
-    client.kill();
+    c.kill();
   }
+
+  // ── Closing stdin with a call in flight ─────────────────────────────────────
+  const d = new Client();
+  try {
+    await d.init();
+    const inflight = d.call("aegis_check_output", { response: "Your SSN is 529-41-7783." });
+    d.proc.stdin.end();
+    const [reply, code] = await Promise.all([inflight, Promise.race([d.exited(), wait(10000).then(() => "timeout" as const)])]);
+    assert.equal(verdictOf(reply), "BLOCK");
+    assert.equal(code, 0, `exit code ${code}`);
+    ok("closing stdin with a call in flight: the reply is delivered and the process exits 0");
+  } finally {
+    d.kill();
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  console.log(`\n${passed} MCP adversarial checks passed.`);
 }
 
-run().catch((e) => {
-  console.error("Test failed:", e);
+main().catch((e) => {
+  console.error("FAIL:", e instanceof Error ? e.message : e);
   process.exit(1);
 });

@@ -170,8 +170,10 @@ export async function lookupReferences(text: string, options: { fetchImpl?: Fetc
       // Query with the head of the entry (names, year, title); match against all of it.
       const url = "https://api.crossref.org/works?" + new URLSearchParams({ "query.bibliographic": redactSecrets(queryText(reference)), rows: "5", select: "title,author,issued,published,DOI,container-title" });
       let res = await fetchImpl(url, { headers: { "user-agent": "aletheia-aegis (citation check)" }, signal: ctrl.signal });
-      // Crossref answers bursts with 429: back off and retry twice.
+      // Crossref answers bursts with 429: back off and retry twice, but never
+      // sleep past the overall budget (the back-off used to overrun it by ~5 s).
       for (let attempt = 1; res.status === 429 && attempt <= 2; attempt++) {
+        if (Date.now() + 1500 * attempt + 1000 > deadline) break;
         await new Promise((r) => setTimeout(r, 1500 * attempt));
         res = await fetchImpl(url, { headers: { "user-agent": "aletheia-aegis (citation check)" }, signal: ctrl.signal });
       }
