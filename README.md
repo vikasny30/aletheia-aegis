@@ -10,7 +10,7 @@
 
 Aegis is the output plane of the Aletheia safety framework. It inspects generated text before it reaches a user, blocks credential leaks and life-safety failures outright, and flags everything else for audit or disclaimer. It runs offline by default, on CPU, with no response text retained.
 
-Ships as an MCP server, TypeScript SDK, and CLI. Version 0.3.0. Apache 2.0. TypeScript, Node.js 18/20/22.
+Ships as an MCP server, TypeScript SDK, and CLI. Version 0.3.0. Apache 2.0. TypeScript, Node.js 18 or later.
 
 ---
 
@@ -108,26 +108,25 @@ S3 is split by plane by design, so no single layer is a single point of failure:
 
 ## Performance and evaluation
 
-Benchmarked on Linux x86_64 and Apple Silicon, Node.js 18/20/22, single core unless noted.
+Measured on Apple Silicon (macOS, Node.js 26), single core. Timings vary with machine load; run `npm run benchmark` to measure on your own hardware.
 
 | Metric | Result |
 |---|---|
-| p50 latency, deterministic filter | 0.009 to 0.012 ms |
-| p95 latency, deterministic filter | 0.019 to 0.029 ms |
-| Peak throughput | 73,080+ evals/sec, single core, unbatched |
-| Concurrent throughput | 4,815+ evals/sec, 120 async tasks |
-| Memory footprint | Under 35 MB RSS, no native compile |
+| p50 latency, deterministic filter | about 0.01 to 0.025 ms |
+| p95 latency, deterministic filter | about 0.02 to 0.04 ms |
+| Throughput | about 37,000 to 78,000 evals/sec, single core, unbatched |
+| Memory | about 64 MB RSS for the idle server (Node.js 26, macOS arm64); no native modules |
 | Benign false positives | 0 of 90 |
 | Bundled eval corpus | 215 of 215 pass, zero regression |
 | Held-out catch rate, batches 10-11, balanced policy | 90.2 percent, with 1.4 percent false alarms |
 
-Held-out evaluation used 575 real model outputs across 30+ open and frontier models. Batches 10-11 replay offline with no external API cost:
+Held-out evaluation used 917 real model outputs from 48 open and frontier models, in 11 batches. Batches 10-11 replay offline with no external API cost:
 
 ```
 npm run eval:heldout:judge
 ```
 
-Labels were committed before measurement. The 90.2 percent figure is the balanced-policy result with the semantic judge enabled; patterns alone catch less, which is why the two-stage design exists. See `eval/` for the labeled cases and replay instructions.
+Labels were committed before measurement. The 90.2 percent figure is the balanced-policy result with the semantic judge enabled. On the same two batches, patterns alone catch 39 of 51 failures (76 percent) and wrongly flag 10 of 147 good outputs (6.8 percent), which is why the two-stage design exists. See `eval/` for the labeled cases and replay instructions.
 
 ### Adversarial testing
 
