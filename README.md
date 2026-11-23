@@ -131,7 +131,7 @@ Labels were committed before measurement. The 90.2 percent figure is the balance
 
 ### Adversarial testing
 
-Six rounds of cross-family adversarial testing, conducted with Claude Sonnet 5.5 and Gemini 3.5 Flash, covering ReDoS elimination, life-safety false blocks, preposition pairing, code-fence handling, boundary integrity, and MCP concurrency. Each round is documented in [docs/audits/](docs/audits/); the test suite reproduces the checks offline.
+Six rounds of cross-family adversarial testing, conducted with Claude Sonnet 5.5 and Gemini 3.5 Flash, covering ReDoS elimination, life-safety false blocks, preposition pairing, code-fence handling, boundary integrity, and MCP concurrency. Each round's findings and fixes are summarized in [CHANGELOG.md](CHANGELOG.md); the test suite reproduces the checks offline.
 
 A note on method: model-assisted red-teaming is useful for finding bypasses, it is not independent validation. The held-out numbers above are the empirical claim. The adversarial rounds are the hardening process behind them.
 

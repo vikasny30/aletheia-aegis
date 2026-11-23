@@ -8,3 +8,6 @@ dist/
 PLAN.md
 # Per-run eval reports (npm run eval*); commit one deliberately if a published number cites it.
 eval/reports/
+# Adversarial-test reports are kept privately (../aletheia-aegis-review/audits/), not in the repo.
+docs/audits/
+AGY_*
