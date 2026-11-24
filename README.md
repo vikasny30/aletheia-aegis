@@ -128,6 +128,8 @@ npm run eval:heldout:judge
 
 Labels were committed before measurement. The 90.2 percent figure is the balanced-policy result with the semantic judge enabled. On the same two batches, patterns alone catch 39 of 51 failures (76 percent) and wrongly flag 10 of 147 good outputs (6.8 percent), which is why the two-stage design exists. See `eval/` for the labeled cases and replay instructions.
 
+Labels were drafted with an AI coding assistant under the author's direction. A second model family (Kimi K2) labeled batches 1–9 blind as a cross-check, and the author blind-reviewed 83 of the 198 batch 10–11 labels by hand (83/83 agreement). Full methodology is in eval/heldout/README.md.
+
 ### Adversarial testing
 
 Six rounds of cross-family adversarial testing, conducted with Claude Sonnet 5.5 and Gemini 3.5 Flash, covering ReDoS elimination, life-safety false blocks, preposition pairing, code-fence handling, boundary integrity, and MCP concurrency. Each round's findings and fixes are summarized in [CHANGELOG.md](CHANGELOG.md); the test suite reproduces the checks offline.

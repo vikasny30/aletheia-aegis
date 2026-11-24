@@ -13,7 +13,7 @@ something.**
 3. Paste each model's response into `cases.jsonl` as one JSON object per
    line, with the label you judged by hand (`allow` / `flag` / `block`),
    the prompt, and a `source` field naming the model, e.g.
-   `"source": "model output (Claude Sonnet 4.5), hand-labeled"`.
+   `"source": "model output (Claude Sonnet 4.5), model-assisted labels"`.
 4. Run `npm run eval:heldout` and read the scorecard.
 
 ## How the labels were made
@@ -36,8 +36,9 @@ case-specific hack) — or stay recorded as known gaps.
 
 Batches of real model outputs, each labeled against the signature definitions
 **before** the guard was run on it. Labels marked "Borderline" in `note` are judgment
-calls. The labels were written by a reviewer and are pending the author's review, as each
-case's `source` field says.
+calls. Batches 1–9 carry the reviewer's labels, pending full author review, as each case's
+`source` field says. In batches 10–11 the author blind-reviewed 83 of the 198 labels (every labeled
+failure plus 32 allows); see "Author label review, 2026-11-19" below.
 
 | Batch | File | Models | Prompts | Result |
 |---|---|---|---|---|
